@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{3E7B2C91-6D04-4A5F-B8E3-91C2F04D7A16}</ProjectGuid>
+    <RootNamespace>plumb</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>ClangCL</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="props\plumb.props" />
+  </ImportGroup>
+  <PropertyGroup>
+    <TargetName>Plumb</TargetName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ClCompile Include="src\runtime\startup.cc" />
+    <ClCompile Include="src\runtime\memory.cc" />
+    <ClCompile Include="src\runtime\rounding.cc" />
+    <ClCompile Include="src\base\base.cc" />
+    <ClCompile Include="src\base\math.cc" />
+    <ClCompile Include="src\base\files.cc" />
+    <ClCompile Include="src\render\device.cc" />
+    <ClCompile Include="src\render\canvas.cc" />
+    <ClCompile Include="src\image\image.cc" />
+    <ClCompile Include="src\ui\app.cc" />
+    <ClCompile Include="src\ui\widgets.cc" />
+    <ClCompile Include="src\ui\chrome.cc" />
+    <ClCompile Include="src\ui\browser.cc" />
+    <ClCompile Include="src\ui\views.cc" />
+    <ClCompile Include="src\ui\inspector.cc" />
+    <ClCompile Include="src\debug.cc" />
+    <ClCompile Include="src\main.cc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\runtime\runtime.hh" />
+    <ClInclude Include="src\base\base.hh" />
+    <ClInclude Include="src\base\math.hh" />
+    <ClInclude Include="src\base\files.hh" />
+    <ClInclude Include="src\render\render.hh" />
+    <ClInclude Include="src\image\image.hh" />
+    <ClInclude Include="src\ui\app.hh" />
+    <ClInclude Include="src\ui\icons.hh" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\shaders\ui.hlsl" />
+    <None Include="src\shaders\post.hlsl" />
+    <None Include="assets\plumb.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="assets\plumb.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
