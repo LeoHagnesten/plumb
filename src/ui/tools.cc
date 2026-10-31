@@ -160,8 +160,47 @@ namespace ui {
 
 		} else if ( action == command::COMMENT )
 			fill = user_text ( comments, address );
-		else if ( action == command::FIND_SIGNATURE && !search_query.empty ( ) )
+		else if ( ( action == command::FIND_SIGNATURE || action == command::SEARCH_ALL ) && !search_query.empty ( ) )
 			fill = search_query.get ( );
+		else if ( action == command::XOR_DECODE )
+			fill = L"auto";
+		else if ( action == command::ASSEMBLE && db ) {
+
+			x86::instruction ins;
+
+			if ( db->decode ( address, ins ) ) {
+
+				x86::format_text ( ins, name, 200, nullptr, 0 );
+				fill = name;
+
+			}
+
+		} else if ( action == command::PATCH_BYTES ) {
+
+			uint64_t offset = 0;
+			x86::instruction ins;
+			int32_t count = db && db->is_start ( address ) && db->decode ( address, ins ) ? ins.length : 8;
+			base::writer bytes;
+
+			if ( file.offset_of ( address, offset ) ) {
+
+				for ( int32_t b = 0; b < count && offset + static_cast < uint64_t > ( b ) < file.size; b++ ) {
+
+					if ( b )
+						bytes.add ( L' ' );
+
+					bytes.hex ( file.byte ( offset + static_cast < uint64_t > ( b ) ), 2 );
+
+				}
+
+				for ( int32_t i = 0; i <= bytes.size ( ) && i < 200; i++ )
+					name [ i ] = bytes.text ( ) [ i ];
+
+				fill = name;
+
+			}
+
+		}
 
 		if ( fill ) {
 
@@ -206,7 +245,7 @@ namespace ui {
 		focus_id = 0;
 		focused_field = nullptr;
 
-		if ( prompt_action != command::FIND_SIGNATURE )
+		if ( prompt_action != command::FIND_SIGNATURE && prompt_action != command::SEARCH_ALL )
 			remember_undo ( );
 
 		switch ( prompt_action ) {
@@ -253,6 +292,25 @@ namespace ui {
 
 			case command::FIND_SIGNATURE:
 				find_signature ( text );
+				break;
+
+			case command::SEARCH_ALL:
+				search_everything ( text );
+				break;
+
+			case command::ASSEMBLE:
+
+				if ( length )
+					assemble_at ( prompt_address, text );
+
+				break;
+
+			case command::PATCH_BYTES:
+				patch_text ( prompt_address, text );
+				break;
+
+			case command::XOR_DECODE:
+				xor_decode ( prompt_address, text );
 				break;
 
 			case command::SET_TYPE: {

@@ -45,6 +45,7 @@ namespace ui {
 		PSEUDOCODE,
 		HEX,
 		HEADERS,
+		CALLS,
 		COUNT,
 
 	};
@@ -169,9 +170,18 @@ namespace ui {
 		MAKE_SIGNATURE,
 		FIND_SIGNATURE,
 		COPY_FUNCTION,
+		SEARCH_ALL,
+		ASSEMBLE,
+		PATCH_BYTES,
+		REVERT_PATCH,
+		EXPORT_PATCHED,
+		XOR_DECODE,
+		VIEW_CALLS,
+		EXPORT_CLASSES,
 		TOGGLE_BYTES,
 		TOGGLE_AUTOSAVE,
 		TOGGLE_SPACING,
+		TOGGLE_TERNARY,
 		DEBUG_RUN,
 		DEBUG_STEP_INTO,
 		DEBUG_STEP_OVER,
@@ -409,6 +419,31 @@ namespace ui {
 
 		uint64_t address = 0;
 		uint32_t length = 0;
+		base::text note;
+
+	};
+
+	struct patched_byte {
+
+		uint64_t offset = 0;
+		uint8_t original = 0;
+		uint8_t value = 0;
+
+	};
+
+	struct stack_text {
+
+		uint64_t address = 0;
+		base::text text;
+
+	};
+
+	struct call_node {
+
+		uint64_t address = 0;
+		int32_t column = 0;
+		int32_t parent = -1;
+		math::rect box;
 
 	};
 
@@ -635,6 +670,38 @@ namespace ui {
 
 		bool indirect_note ( const x86::instruction& ins, base::writer& out ) const;
 
+		bool parse_address ( const wchar_t* text, uint64_t& result ) const;
+
+		int32_t patch_index ( uint64_t offset ) const;
+
+		bool is_patched ( uint64_t address, int32_t length ) const;
+
+		void set_byte ( uint64_t offset, uint8_t value );
+
+		bool patch_bytes ( uint64_t address, const uint8_t* bytes, int32_t count );
+
+		bool patch_text ( uint64_t address, const wchar_t* text );
+
+		void revert_patch ( uint64_t address );
+
+		void reanalyze ( );
+
+		void export_patched ( );
+
+		bool assemble_at ( uint64_t address, const wchar_t* text );
+
+		uint64_t patch_target ( ) const;
+
+		const wchar_t* stack_string ( uint64_t address ) const;
+
+		void xor_decode ( uint64_t address, const wchar_t* spec );
+
+		void search_everything ( const wchar_t* query );
+
+		void export_classes ( );
+
+		void build_calls ( uint64_t function );
+
 
 		render::gpu* gpu = nullptr;
 		void* window = nullptr;
@@ -678,6 +745,7 @@ namespace ui {
 		bool double_event = false;
 		bool middle_event = false;
 		double last_press = -10.0;
+		bool double_event_last = false;
 		math::vec2 press_at;
 		float wheel_steps = 0.0f;
 		float wheel_side = 0.0f;
@@ -839,6 +907,7 @@ namespace ui {
 		debugger::snapshot debug_state;
 		uint64_t debug_pc = 0;
 		bool c_spaced = true;
+		bool c_no_ternary = false;
 		uint64_t reference_target = ~0ull;
 		double blink_from = 0.0;
 		bool caret_live = false;
@@ -857,6 +926,16 @@ namespace ui {
 		uint32_t names_revision = 0;
 
 		decompiler::cache code_cache;
+		base::list < patched_byte > patches;
+		mutable base::list < uint64_t > stack_seen;
+		mutable base::list < stack_text > stack_texts;
+		analysis::database* building = nullptr;
+		bool rebuild_pending = false;
+		base::list < call_node > call_nodes;
+		uint64_t calls_for = ~0ull;
+		uint32_t calls_revision = 0;
+		const analysis::database* calls_db = nullptr;
+		int32_t call_totals [ 2 ] = { };
 
 		scroller inspector_scroll;
 		scroller output_scroll;
@@ -931,8 +1010,6 @@ namespace ui {
 		void go_offset ( uint64_t offset );
 
 		void set_cursor_row ( uint64_t row, bool center );
-
-		bool parse_address ( const wchar_t* text, uint64_t& result ) const;
 
 		void refresh_filter ( panel which );
 
@@ -1018,6 +1095,8 @@ namespace ui {
 		void draw_hex ( math::rect area );
 
 		void draw_headers ( math::rect area );
+
+		void draw_calls ( math::rect area );
 
 		void draw_inspector ( );
 

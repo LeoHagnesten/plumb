@@ -301,8 +301,9 @@ namespace ui {
 	static unsigned long __stdcall analysis_entry ( void* parameter ) {
 
 		app* owner = static_cast < app* > ( parameter );
+		analysis::database* target = owner->building ? owner->building : owner->db;
 
-		owner->db->build ( owner->file, &owner->analysis_state );
+		target->build ( owner->file, &owner->analysis_state );
 		__atomic_store_n ( &owner->analysis_done, 1, __ATOMIC_RELEASE );
 
 		if ( owner->window )
@@ -337,6 +338,45 @@ namespace ui {
 
 	}
 
+	void app::reanalyze ( ) {
+
+		code_cache.clear ( );
+		stack_seen.clear ( );
+		stack_texts.clear ( );
+		calls_for = ~0ull;
+		names_revision++;
+
+		if ( !db || !file.loaded ( ) || ( !analysis_applied && !analysis_thread ) )
+			return;
+
+		if ( building || !analysis_applied ) {
+
+			rebuild_pending = true;
+
+			return;
+
+		}
+
+		wait_analysis ( );
+		building = new analysis::database ( );
+		analysis_done = 0;
+		analysis_state.stage = 0;
+		analysis_state.done = 0;
+		analysis_state.total = 0;
+
+		if ( !analysis_sync )
+			analysis_thread = CreateThread ( nullptr, 0, analysis_entry, this, 0, nullptr );
+
+		if ( !analysis_thread ) {
+
+			building->build ( file, &analysis_state );
+			analysis_done = 1;
+			analysis_finished ( );
+
+		}
+
+	}
+
 	void app::wait_analysis ( ) {
 
 		if ( !analysis_thread )
@@ -350,7 +390,68 @@ namespace ui {
 
 	void app::analysis_finished ( ) {
 
-		if ( analysis_applied || !__atomic_load_n ( &analysis_done, __ATOMIC_ACQUIRE ) || !file.loaded ( ) )
+		if ( !__atomic_load_n ( &analysis_done, __ATOMIC_ACQUIRE ) || !file.loaded ( ) )
+			return;
+
+		if ( building ) {
+
+			wait_analysis ( );
+
+			base::list < uint64_t > rows;
+
+			for ( document& item : documents )
+				rows.push ( item.used && item.kind == view::LISTING ? item.state.cursor_row : 0 );
+
+			delete db;
+			db = building;
+			building = nullptr;
+			code_cache.clear ( );
+			stack_seen.clear ( );
+			stack_texts.clear ( );
+			calls_for = ~0ull;
+			names_revision++;
+			references_for = ~0ull;
+			build_listing ( );
+			refresh_filter ( panel::FUNCTIONS );
+			refresh_filter ( panel::CLASSES );
+
+			view_state* held = now;
+
+			for ( int32_t i = 0; i < 16; i++ ) {
+
+				document& item = documents [ i ];
+
+				if ( !item.used || item.kind != view::LISTING )
+					continue;
+
+				now = &item.state;
+
+				float shift = static_cast < float > ( static_cast < int64_t > ( row_of ( now->cursor_address ) ) - static_cast < int64_t > ( rows [ static_cast < size_t > ( i ) ] ) );
+
+				now->listing_scroll.offset += shift;
+				now->listing_scroll.target += shift;
+				now->listing_scroll.shown += shift;
+				now->listing_scroll.from += shift;
+				now->listing_scroll.goal += shift;
+
+			}
+
+			now = held;
+			log ( log_kind::INFO, base::writer ( ).add ( L"Re-analyzed in " ).fixed ( db->seconds * 1000.0, 1 ).add ( L" ms." ).text ( ) );
+			pending = base::max ( pending, 4 );
+
+			if ( rebuild_pending ) {
+
+				rebuild_pending = false;
+				reanalyze ( );
+
+			}
+
+			return;
+
+		}
+
+		if ( analysis_applied )
 			return;
 
 		wait_analysis ( );
@@ -405,6 +506,13 @@ namespace ui {
 		}
 
 		pending = base::max ( pending, 4 );
+
+		if ( rebuild_pending ) {
+
+			rebuild_pending = false;
+			reanalyze ( );
+
+		}
 
 	}
 
@@ -703,6 +811,12 @@ namespace ui {
 
 		}
 
+		bool expand_ternary ( ) override {
+
+			return owner->c_no_ternary;
+
+		}
+
 		bool struct_field ( const wchar_t* type, int64_t offset, wchar_t* out, int32_t room, uint64_t& tag, int32_t& size ) override {
 
 			int32_t index = owner->struct_named ( type );
@@ -886,6 +1000,20 @@ namespace ui {
 			return;
 
 		wait_analysis ( );
+
+		if ( building ) {
+
+			delete building;
+			building = nullptr;
+
+		}
+
+		rebuild_pending = false;
+		patches.clear ( );
+		stack_seen.clear ( );
+		stack_texts.clear ( );
+		call_nodes.clear ( );
+		calls_for = ~0ull;
 
 		if ( autosave )
 			save_project ( );

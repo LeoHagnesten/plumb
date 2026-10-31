@@ -16,6 +16,14 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 - Opcode bytes are hidden by default. Turn them on under Window.
 - Number display per instruction: hex or decimal (H), character (R), binary (B) and float (F). Immediates that look like floats get a `float 1.0` hint.
 - Graph view (Space) with layered layout, colored edges (taken, not taken, unconditional, switch case), zoom, pan and a minimap.
+- Stack strings built from immediate stores, including the `mov reg, imm` then store pattern compilers emit, are put back together and shown next to the first store.
+
+### Patching
+
+- Ctrl+Alt+A assembles an instruction over the one under the caret. The box starts with the current instruction, takes names and addresses as operands, and fills leftover bytes with `nop`. If the new code is longer, you're told what it overwrote.
+- Ctrl+Alt+B writes raw hex bytes, from the listing or the hex view. Ctrl+Alt+R reverts the patched run under the caret.
+- Patched addresses turn yellow, and the image is analyzed again in the background so functions, references and the C view follow the change.
+- Patches are part of the project and of undo and redo. Patch > Write patched copy saves `name.patched.exe` beside the original, or under `%APPDATA%\Plumb\patched` when that folder is read-only. The original file is never touched.
 
 ### Analysis
 
@@ -23,6 +31,10 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 - Cross-references for calls, jumps, reads, writes and pointers. X lists the references to the name under the caret, whether that's a call target, a global or the function you're in.
 - MSVC switch table recovery: image-relative, table-relative, pointer tables and byte index tables.
 - RTTI class recovery: class names, base class chains, vtables and virtual functions, named `Class::vftable` and `Class::vfunc_N` throughout. The Classes panel (Alt+6) lists them all.
+- Tools > Export classes as C++ writes a header with every recovered class: its direct bases, its virtual functions in vtable order using your prototypes, and which slots are inherited. It's also copied to the clipboard.
+- Call graph (Ctrl+4) shows two levels of callers and callees around a function. Double-click a node to center it, Enter opens it in the disassembly.
+- Search everything (Ctrl+Shift+F) looks through the text of every instruction. `#0x40` finds immediates and displacements with that value, and `c:text` searches the C of every function.
+- XOR decoding (Ctrl+Alt+X) takes a key in hex, with an optional length, or `auto` to try every single-byte key. The decoded text is logged and added as a comment.
 - Signature maker (Ctrl+Alt+S) that finds the shortest unique pattern and wildcards relocatable bytes, with output in IDA, x64dbg, code and mask, or byte array form. The signature finder (Ctrl+Alt+F) accepts the same formats or plain text.
 
 ### Decompiler
@@ -34,6 +46,7 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 - User-defined structs. Press S on a pointer variable to build a struct from how the function uses it, then rename fields (N) and retype them (Y) right in the C. Structs can also be built and edited in the Structures panel (Alt+7), and any variable typed `Name*` reads as `v->field`.
 - Comments (;) show up in both the disassembly and the C.
 - Line numbers, VS-style coloring, and an optional `call ( arg )` spacing style.
+- Tools > Write ternaries as if and else turns every `a ? b : c` into an `if`/`else`. Nested ones are moved into a temporary filled just before the statement. The only ones left are inside `while` and `else if` conditions, where moving them would change when they run.
 
 ### Debugger
 
@@ -44,9 +57,9 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 
 ### Workspace
 
-- Up to 16 tabs across two split panes. Each tab is a listing, graph, C, hex or headers view.
+- Up to 16 tabs across two split panes. Each tab is a listing, graph, C, hex, headers or call graph view.
 - Browser, inspector and output windows dock to the left, right or bottom: drag a window's header to move it. Window > Reset window layout puts everything back.
-- Ctrl+S saves the project to a `.plumb` file beside the binary. It holds names, comments, bookmarks, number formats, variable names, types, prototypes, structs and breakpoints, and opening that file opens the binary with everything restored. Autosave is a setting in the File menu, and closing with unsaved changes asks first.
+- Ctrl+S saves the project to a `.plumb` file beside the binary. It holds names, comments, bookmarks, number formats, variable names, types, prototypes, structs, breakpoints and patches, and opening that file opens the binary with everything restored. Autosave is a setting in the File menu, and closing with unsaved changes asks first.
 - Undo and redo (Ctrl+Z, Ctrl+Y) for every edit.
 - Command palette (Ctrl+Shift+P), go to address or name (G), back and forward history, and a command line in the output pane.
 - Dark and light themes.
@@ -55,6 +68,7 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 | --- | --- |
 | ![C view](docs/media/pseudocode.png) | ![Graph view](docs/media/graph.png) |
 | ![Classes recovered from RTTI](docs/media/classes.png) | ![Paused at a breakpoint](docs/media/debugger.png) |
+| ![Call graph](docs/media/calls.png) | ![An instruction assembled over the original, with the patched bytes in yellow](docs/media/patch.png) |
 
 ![The light theme with C and disassembly side by side](docs/media/light.png)
 
@@ -71,6 +85,9 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 | F2 | Breakpoint | Ctrl+F2 | Stop debugging |
 | Ctrl+Alt+S | Make signature | Ctrl+Alt+F | Find signature |
 | S | Struct from variable | Alt+7 | Structures |
+| Ctrl+Alt+A | Assemble | Ctrl+Alt+B | Patch bytes |
+| Ctrl+Alt+R | Revert patch | Ctrl+Alt+X | Decode XOR |
+| Ctrl+Shift+F | Search everything | Ctrl+4 | Call graph |
 | Ctrl+S | Save project | Ctrl+Z / Ctrl+Y | Undo / redo |
 | Ctrl+1 / 2 / 3 | New listing, hex or headers tab | Ctrl+\\ | Split |
 
@@ -91,7 +108,7 @@ The executable lands in `build\release\Plumb.exe`. Pass a file path to open it o
 - `src/runtime` Entry point, allocator and compiler support routines that replace the C runtime
 - `src/base` Containers, text formatting, math and file I/O
 - `src/loader` PE parsing, imports and exports, string scanning and address translation
-- `src/x86` Decoder and Intel-syntax formatter
+- `src/x86` Decoder, Intel-syntax formatter and assembler
 - `src/analysis` Function discovery, cross-references, switch tables, RTTI, graphs and signatures
 - `src/decompiler` Lifting, data flow cleanup, control flow structuring, C output and type parsing
 - `src/debugger` The Win32 debug loop

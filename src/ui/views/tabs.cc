@@ -4,8 +4,8 @@
 
 namespace ui {
 
-	static const wchar_t* view_titles [ static_cast < int32_t > ( view::COUNT ) ] = { L"Disassembly", L"Graph", L"C", L"Hex", L"Headers" };
-	static const uint32_t view_glyphs [ static_cast < int32_t > ( view::COUNT ) ] = { icons::CODE, icons::BRANCH, icons::FORM, icons::CHIP, icons::INFO };
+	static const wchar_t* view_titles [ static_cast < int32_t > ( view::COUNT ) ] = { L"Disassembly", L"Graph", L"C", L"Hex", L"Headers", L"Calls" };
+	static const uint32_t view_glyphs [ static_cast < int32_t > ( view::COUNT ) ] = { icons::CODE, icons::BRANCH, icons::FORM, icons::CHIP, icons::INFO, icons::LAYERS };
 
 	void app::draw_panes ( ) {
 
@@ -62,7 +62,7 @@ namespace ui {
 
 			text.add ( view_titles [ static_cast < int32_t > ( doc.kind ) ] );
 
-			if ( ( doc.kind == view::PSEUDOCODE || doc.kind == view::GRAPH ) && db && analysis_applied ) {
+			if ( ( doc.kind == view::PSEUDOCODE || doc.kind == view::GRAPH || doc.kind == view::CALLS ) && db && analysis_applied ) {
 
 				int32_t owner = db->function_starting ( doc.kind == view::GRAPH ? doc.state.graph_function : doc.state.function );
 
@@ -286,6 +286,10 @@ namespace ui {
 
 			case view::HEADERS:
 				draw_headers ( item.body );
+				break;
+
+			case view::CALLS:
+				draw_calls ( item.body );
 				break;
 
 			default:

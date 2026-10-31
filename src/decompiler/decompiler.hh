@@ -131,6 +131,12 @@ namespace decompiler {
 
 		}
 
+		virtual bool expand_ternary ( ) {
+
+			return false;
+
+		}
+
 		virtual bool struct_field ( const wchar_t*, int64_t, wchar_t*, int32_t, uint64_t&, int32_t& ) {
 
 			return false;

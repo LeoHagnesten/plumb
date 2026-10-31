@@ -65,9 +65,18 @@ namespace ui {
 		{ L"Make signature", L"Ctrl+Alt+S" },
 		{ L"Find signature or bytes", L"Ctrl+Alt+F" },
 		{ L"Copy function as C", L"Ctrl+Shift+C" },
+		{ L"Search everything", L"Ctrl+Shift+F" },
+		{ L"Assemble instruction", L"Ctrl+Alt+A" },
+		{ L"Patch bytes", L"Ctrl+Alt+B" },
+		{ L"Revert patch", L"Ctrl+Alt+R" },
+		{ L"Write patched copy", L"" },
+		{ L"Decode XOR bytes", L"Ctrl+Alt+X" },
+		{ L"Call graph", L"Ctrl+4" },
+		{ L"Export classes as C++", L"" },
 		{ L"Show opcode bytes", L"" },
 		{ L"Autosave the project", L"" },
 		{ L"Spaces inside parentheses in C", L"" },
+		{ L"Write ternaries as if and else", L"" },
 		{ L"Start or continue", L"F9" },
 		{ L"Step into", L"F7" },
 		{ L"Step over", L"F8" },
@@ -124,7 +133,25 @@ namespace ui {
 
 			case command::SET_TYPE:
 			case command::STRUCT_FROM_VAR:
+			case command::SEARCH_ALL:
 				return analyzed;
+
+			case command::ASSEMBLE:
+				return analyzed && ( showing == view::LISTING || showing == view::GRAPH ) && db->is_covered ( now->cursor_address );
+
+			case command::PATCH_BYTES:
+			case command::XOR_DECODE:
+				return analyzed && ( showing == view::LISTING || showing == view::GRAPH || showing == view::HEX );
+
+			case command::REVERT_PATCH:
+			case command::EXPORT_PATCHED:
+				return has && !patches.empty ( );
+
+			case command::VIEW_CALLS:
+				return analyzed && db->function_at ( showing == view::PSEUDOCODE ? now->function : now->cursor_address ) >= 0;
+
+			case command::EXPORT_CLASSES:
+				return analyzed && !db->classes.empty ( );
 
 			case command::DEBUG_PAUSE:
 				return debug_state.state == debugger::status::RUNNING;
@@ -183,6 +210,9 @@ namespace ui {
 
 			case command::TOGGLE_SPACING:
 				return c_spaced;
+
+			case command::TOGGLE_TERNARY:
+				return c_no_ternary;
 
 			case command::DEBUG_BREAKPOINT:
 				return is_breakpoint ( now->cursor_address );
@@ -590,6 +620,51 @@ namespace ui {
 				names_revision++;
 				break;
 
+			case command::TOGGLE_TERNARY:
+				c_no_ternary = !c_no_ternary;
+				names_revision++;
+				log ( log_kind::INFO, c_no_ternary ? L"Ternaries in the C view are written as if and else." : L"Ternaries in the C view are written with ? and : again." );
+				break;
+
+			case command::SEARCH_ALL:
+				open_prompt ( action, now->cursor_address );
+				break;
+
+			case command::ASSEMBLE:
+			case command::PATCH_BYTES:
+			case command::XOR_DECODE:
+				open_prompt ( action, patch_target ( ) );
+				break;
+
+			case command::REVERT_PATCH:
+				revert_patch ( patch_target ( ) );
+				break;
+
+			case command::EXPORT_PATCHED:
+				export_patched ( );
+				break;
+
+			case command::EXPORT_CLASSES:
+				export_classes ( );
+				break;
+
+			case command::VIEW_CALLS: {
+
+				uint64_t subject = showing == view::PSEUDOCODE ? now->function : now->cursor_address;
+				uint64_t start = db->functions [ static_cast < size_t > ( db->function_at ( subject ) ) ].start;
+				int32_t slot = open_document ( view::CALLS, focused_pane, start );
+
+				if ( slot >= 0 ) {
+
+					documents [ slot ].state.function = start;
+					documents [ slot ].state.cursor_address = start;
+
+				}
+
+				break;
+
+			}
+
 			case command::DEBUG_RUN:
 			case command::DEBUG_STEP_INTO:
 			case command::DEBUG_STEP_OVER: {
@@ -689,6 +764,30 @@ namespace ui {
 
 				x86::instruction ins;
 				uint64_t target = 0;
+
+				if ( showing == view::CALLS ) {
+
+					uint64_t address = now->cursor_address;
+					pane& item = panes [ focused_pane ];
+
+					for ( int32_t i = 0; i < item.count; i++ ) {
+
+						if ( documents [ item.tabs [ i ] ].kind == view::LISTING ) {
+
+							focus_document ( focused_pane, i );
+							go ( address, true );
+
+							return;
+
+						}
+
+					}
+
+					open_document ( view::LISTING, focused_pane, address );
+
+					break;
+
+				}
 
 				if ( showing == view::LISTING ) {
 
@@ -1132,7 +1231,7 @@ namespace ui {
 		uint64_t address = 0;
 
 		if ( base::same_text ( word, L"help" ) )
-			log ( log_kind::INFO, L"Commands: go <address|name>, entry, back, forward, section <name>, view <asm|c|hex|headers>, find <pattern>, sig, rename <name>, comment <text>, split, theme <light|dark>, open, close, clear" );
+			log ( log_kind::INFO, L"Commands: go <address|name>, entry, back, forward, section <name>, view <asm|c|hex|headers|calls>, find <pattern>, search <text|#value|c:text>, asm <instruction>, patch <hex bytes>, revert, xor <key|auto>, sig, rename <name>, comment <text>, split, theme <light|dark>, open, close, clear" );
 		else if ( base::same_text ( word, L"clear" ) )
 			output.clear ( );
 		else if ( base::same_text ( word, L"open" ) )
@@ -1151,6 +1250,26 @@ namespace ui {
 			run ( command::MAKE_SIGNATURE );
 		else if ( base::same_text ( word, L"find" ) && file.loaded ( ) )
 			find_signature ( rest );
+		else if ( base::same_text ( word, L"search" ) && enabled ( command::SEARCH_ALL ) )
+			search_everything ( rest );
+		else if ( base::same_text ( word, L"asm" ) && enabled ( command::ASSEMBLE ) ) {
+
+			remember_undo ( );
+			assemble_at ( patch_target ( ), rest );
+
+		} else if ( base::same_text ( word, L"patch" ) && enabled ( command::PATCH_BYTES ) ) {
+
+			remember_undo ( );
+			patch_text ( patch_target ( ), rest );
+
+		} else if ( base::same_text ( word, L"revert" ) && enabled ( command::REVERT_PATCH ) )
+			revert_patch ( patch_target ( ) );
+		else if ( base::same_text ( word, L"xor" ) && enabled ( command::XOR_DECODE ) ) {
+
+			remember_undo ( );
+			xor_decode ( patch_target ( ), rest );
+
+		}
 		else if ( ( base::same_text ( word, L"rename" ) || base::same_text ( word, L"comment" ) ) && file.loaded ( ) ) {
 
 			bool rename = base::same_text ( word, L"rename" );
@@ -1173,6 +1292,8 @@ namespace ui {
 				run ( command::VIEW_HEADERS );
 			else if ( base::same_text ( rest, L"c" ) || base::same_text ( rest, L"pseudocode" ) )
 				run ( command::VIEW_PSEUDOCODE );
+			else if ( base::same_text ( rest, L"calls" ) )
+				run ( command::VIEW_CALLS );
 			else
 				run ( command::VIEW_LISTING );
 

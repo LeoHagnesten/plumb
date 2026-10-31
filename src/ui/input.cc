@@ -347,6 +347,14 @@ namespace ui {
 					run ( command::MAKE_SIGNATURE );
 				else if ( code == 'F' )
 					run ( command::FIND_SIGNATURE );
+				else if ( code == 'A' )
+					run ( command::ASSEMBLE );
+				else if ( code == 'B' )
+					run ( command::PATCH_BYTES );
+				else if ( code == 'R' )
+					run ( command::REVERT_PATCH );
+				else if ( code == 'X' )
+					run ( command::XOR_DECODE );
 
 				continue;
 
@@ -362,6 +370,8 @@ namespace ui {
 					run ( command::CLOSE );
 				else if ( code == 'C' )
 					run ( command::COPY_FUNCTION );
+				else if ( code == 'F' )
+					run ( command::SEARCH_ALL );
 				else if ( code == VK_TAB )
 					run ( command::NEXT_TAB );
 
@@ -452,6 +462,10 @@ namespace ui {
 
 					case '3':
 						run ( command::VIEW_HEADERS );
+						break;
+
+					case '4':
+						run ( command::VIEW_CALLS );
 						break;
 
 					case VK_OEM_5:
@@ -567,6 +581,18 @@ namespace ui {
 						run ( command::TOGGLE_GRAPH );
 
 					continue;
+
+				case VK_RETURN:
+
+					if ( showing == view::CALLS ) {
+
+						run ( command::FOLLOW );
+
+						continue;
+
+					}
+
+					break;
 
 				case VK_BACK:
 					run ( command::BACK );

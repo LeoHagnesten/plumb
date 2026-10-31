@@ -664,7 +664,9 @@ namespace ui {
 
 						where.hex ( item.address, wide ? 9 : 8 );
 
-						if ( owner >= 0 ) {
+						if ( !item.note.empty ( ) )
+							label.add ( item.note.get ( ) );
+						else if ( owner >= 0 ) {
 
 							function_name ( owner, name, 200 );
 							label.add ( name ).add ( L"+" ).hex ( item.address - db->functions [ static_cast < size_t > ( owner ) ].start );
@@ -678,7 +680,8 @@ namespace ui {
 						}
 
 						c.text ( where.text ( ), render::font::MONO_SMALL, math::vec2 ( row.x + 8.0f, cy ), ink ( tone::ADDRESS ) );
-						c.text ( label.text ( ), render::font::MONO_SMALL, math::vec2 ( row.x + 98.0f, cy ), ink ( tone::INK ), render::align::LEFT, row.w - 106.0f );
+						c.text ( label.text ( ), render::font::MONO_SMALL, math::vec2 ( row.x + 98.0f, cy ), ink ( item.note.empty ( ) ? tone::INK : tone::INK_SOFT ), render::align::LEFT, row.w - 106.0f );
+
 
 						break;
 

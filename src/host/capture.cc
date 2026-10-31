@@ -234,6 +234,8 @@ static bool capture_mode ( ) {
 			step ( static_cast < int32_t > ( reader.number ( ) ) );
 		else if ( base::same_text ( command, L"persist" ) )
 			app->persist = true;
+		else if ( base::same_text ( command, L"async" ) )
+			app->analysis_sync = false;
 		else if ( base::same_text ( command, L"sleep" ) ) {
 
 			Sleep ( static_cast < DWORD > ( reader.number ( ) * 1000.0f ) );
@@ -628,7 +630,13 @@ struct plain_names : decompiler::namer {
 
 	}
 
+	bool expand_ternary ( ) override {
 
+		const wchar_t* style = argument ( L"--ternary" );
+
+		return style && base::same_text ( style, L"if" );
+
+	}
 
 };
 
@@ -765,6 +773,85 @@ static bool decompile_mode ( ) {
 
 }
 
+static bool assemble_mode ( ) {
+
+	const wchar_t* source = argument ( L"--assemble" );
+	const wchar_t* target = argument ( L"--out" );
+
+	if ( !source || !target )
+		return false;
+
+	x86::prepare ( );
+
+	base::list < char > input;
+	base::list < char > out;
+
+	if ( !files::read ( source, input ) )
+		return true;
+
+	input.push ( 0 );
+
+	const char* cursor = input.data ( );
+
+	while ( *cursor ) {
+
+		wchar_t line [ 256 ];
+		int32_t length = 0;
+
+		while ( *cursor && *cursor != '\n' && length < 255 ) {
+
+			if ( *cursor != '\r' )
+				line [ length++ ] = static_cast < wchar_t > ( static_cast < uint8_t > ( *cursor ) );
+
+			cursor++;
+
+		}
+
+		if ( *cursor )
+			cursor++;
+
+		line [ length ] = 0;
+
+		if ( !length )
+			continue;
+
+		uint8_t bytes [ 16 ];
+		wchar_t problem [ 200 ];
+		wchar_t text [ 300 ];
+		uint64_t address = 0x140001000;
+		int32_t made = x86::assemble ( line, address, true, nullptr, bytes, 16, problem, 200 );
+		base::writer result;
+
+		result.add ( line ).add ( L"  |  " );
+
+		if ( made < 0 )
+			result.add ( L"ERROR " ).add ( problem );
+		else {
+
+			x86::instruction ins;
+
+			for ( int32_t i = 0; i < made; i++ )
+				result.hex ( bytes [ i ], 2 ).add ( L" " );
+
+			if ( x86::decode ( bytes, static_cast < size_t > ( made ), address, true, ins ) ) {
+
+				x86::format_text ( ins, text, 300, nullptr, x86::PLAIN_RIP );
+				result.add ( L" =>  " ).add ( text );
+
+			}
+
+		}
+
+		append ( out, result );
+
+	}
+
+	write_text ( target, out );
+
+	return true;
+
+}
+
 bool debug_main ( ) {
 
 	arguments = CommandLineToArgvW ( GetCommandLineW ( ), &argument_count );
@@ -779,6 +866,9 @@ bool debug_main ( ) {
 		return true;
 
 	if ( decompile_mode ( ) )
+		return true;
+
+	if ( assemble_mode ( ) )
 		return true;
 
 	return capture_mode ( );
