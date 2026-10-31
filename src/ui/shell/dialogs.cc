@@ -58,7 +58,7 @@ namespace ui {
 				L"x86 and x86-64 decoding, including AVX-512",
 				L"Functions, references, switch tables and RTTI on every core",
 				L"Text, graph and C views with editable names, types and prototypes",
-				L"Debugger with breakpoints and stepping, signature maker and finder"
+				L"Debugger, assembler and patching, call graph and signatures"
 			};
 
 			for ( int32_t i = 0; i < 4; i++ ) {
@@ -81,7 +81,8 @@ namespace ui {
 				command::OPEN, command::PALETTE, command::GO_ADDRESS, command::GO_ENTRY, command::BACK, command::FORWARD, command::FOLLOW,
 				command::TOGGLE_GRAPH, command::VIEW_PSEUDOCODE, command::SWAP_VIEW, command::VIEW_LISTING, command::VIEW_HEX, command::SPLIT,
 				command::CLOSE_TAB, command::NEXT_TAB, command::RENAME, command::SET_TYPE, command::COMMENT, command::BOOKMARK, command::NUMBER_RADIX, command::NUMBER_CHAR, command::SHOW_REFERENCES,
-				command::MAKE_SIGNATURE, command::FIND_SIGNATURE, command::COPY, command::COPY_FUNCTION, command::FIND, command::SHOW_FUNCTIONS,
+				command::MAKE_SIGNATURE, command::FIND_SIGNATURE, command::SEARCH_ALL, command::ASSEMBLE, command::PATCH_BYTES, command::REVERT_PATCH, command::XOR_DECODE, command::VIEW_CALLS,
+				command::COPY, command::COPY_FUNCTION, command::FIND, command::SHOW_FUNCTIONS, command::SAVE_PROJECT, command::UNDO,
 				command::DEBUG_RUN, command::DEBUG_STEP_INTO, command::DEBUG_STEP_OVER, command::DEBUG_BREAKPOINT, command::DEBUG_STOP,
 				command::TOGGLE_BROWSER, command::TOGGLE_INSPECTOR, command::TOGGLE_OUTPUT, command::THEME, command::CLOSE
 			};
@@ -136,6 +137,14 @@ namespace ui {
 			title = L"Comment";
 		else if ( prompt_action == command::FIND_SIGNATURE )
 			title = L"Find signature or bytes";
+		else if ( prompt_action == command::SEARCH_ALL )
+			title = L"Search everything";
+		else if ( prompt_action == command::ASSEMBLE )
+			title = L"Assemble";
+		else if ( prompt_action == command::PATCH_BYTES )
+			title = L"Patch bytes";
+		else if ( prompt_action == command::XOR_DECODE )
+			title = L"Decode XOR bytes";
 		else if ( prompt_mode == 1 )
 			title = L"Rename variable";
 		else if ( prompt_mode == 2 )
@@ -157,6 +166,10 @@ namespace ui {
 
 		if ( prompt_action == command::FIND_SIGNATURE )
 			detail.add ( L"48 8B 05 ? ? ? ?   48 8B 05 ?? ??   \"\\x48\\x8B\" \"xx\"   or \"text\"" );
+		else if ( prompt_action == command::SEARCH_ALL )
+			detail.add ( L"Text in every instruction.  #0x40 finds immediates and offsets.  c:text searches the C." );
+		else if ( prompt_action == command::XOR_DECODE )
+			detail.add ( L"Key bytes in hex like 5A or DE AD BE EF, then an optional decimal length, or auto." );
 		else if ( prompt_mode == 1 || prompt_mode == 2 ) {
 
 			wchar_t name [ 200 ];
@@ -207,6 +220,16 @@ namespace ui {
 		uint64_t field_id = make_id ( "prompt" );
 
 		const wchar_t* hint = prompt_action == command::FIND_SIGNATURE ? L"Pattern" : ( prompt_action == command::COMMENT ? L"Comment, empty to remove" : L"New name, empty to reset" );
+		bool code_font = prompt_action == command::FIND_SIGNATURE || prompt_action == command::SEARCH_ALL || prompt_action == command::ASSEMBLE || prompt_action == command::PATCH_BYTES || prompt_action == command::XOR_DECODE || prompt_mode >= 2;
+
+		if ( prompt_action == command::SEARCH_ALL )
+			hint = L"call rax,  #0x40,  c:GetProcAddress";
+		else if ( prompt_action == command::ASSEMBLE )
+			hint = L"mov eax, 1";
+		else if ( prompt_action == command::PATCH_BYTES )
+			hint = L"90 90 EB 05";
+		else if ( prompt_action == command::XOR_DECODE )
+			hint = L"auto";
 
 		if ( prompt_mode == 2 )
 			hint = L"int32_t, char*, DWORD, MyStruct*  (empty resets)";
@@ -217,12 +240,12 @@ namespace ui {
 		else if ( prompt_mode == 7 || prompt_mode == 8 )
 			hint = L"+0x10 int32_t health";
 
-		bool apply = text_field ( field_id, prompt_field, math::rect ( box.x + 18.0f, box.y + 66.0f, box.w - 36.0f, 32.0f ), hint, 0, prompt_action == command::FIND_SIGNATURE || prompt_mode >= 2 ? render::font::MONO : render::font::UI );
+		bool apply = text_field ( field_id, prompt_field, math::rect ( box.x + 18.0f, box.y + 66.0f, box.w - 36.0f, 32.0f ), hint, 0, code_font ? render::font::MONO : render::font::UI );
 
 		if ( field_submit && focus_id == field_id )
 			apply = true;
 
-		if ( button ( make_id ( "prompt_ok" ), math::rect ( box.right ( ) - 196.0f, box.bottom ( ) - 42.0f, 86.0f, 30.0f ), prompt_action == command::FIND_SIGNATURE ? L"Find" : L"Apply", 0, true ) )
+		if ( button ( make_id ( "prompt_ok" ), math::rect ( box.right ( ) - 196.0f, box.bottom ( ) - 42.0f, 86.0f, 30.0f ), prompt_action == command::FIND_SIGNATURE || prompt_action == command::SEARCH_ALL ? L"Find" : ( prompt_action == command::ASSEMBLE || prompt_action == command::PATCH_BYTES ? L"Patch" : L"Apply" ), 0, true ) )
 			apply = true;
 
 		if ( button ( make_id ( "prompt_cancel" ), math::rect ( box.right ( ) - 102.0f, box.bottom ( ) - 42.0f, 84.0f, 30.0f ), L"Cancel", 0, false ) ) {

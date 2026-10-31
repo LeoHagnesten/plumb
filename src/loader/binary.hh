@@ -140,6 +140,8 @@ namespace loader {
 
 		uint64_t read64 ( uint64_t offset ) const;
 
+		void poke ( uint64_t offset, uint8_t value );
+
 		base::text path;
 		base::text name;
 		const uint8_t* data = nullptr;

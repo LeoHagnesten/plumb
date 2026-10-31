@@ -40,6 +40,13 @@ namespace loader {
 
 	}
 
+	void binary::poke ( uint64_t offset, uint8_t value ) {
+
+		if ( offset < size )
+			const_cast < uint8_t* > ( data ) [ offset ] = value;
+
+	}
+
 	uint16_t binary::read16 ( uint64_t offset ) const {
 
 		if ( offset + 2 > size )
@@ -170,8 +177,8 @@ namespace loader {
 
 		}
 
-		HANDLE map = CreateFileMappingW ( handle, nullptr, PAGE_READONLY, 0, 0, nullptr );
-		void* view = map ? MapViewOfFile ( map, FILE_MAP_READ, 0, 0, 0 ) : nullptr;
+		HANDLE map = CreateFileMappingW ( handle, nullptr, PAGE_WRITECOPY, 0, 0, nullptr );
+		void* view = map ? MapViewOfFile ( map, FILE_MAP_COPY, 0, 0, 0 ) : nullptr;
 
 		if ( !view ) {
 

@@ -49,7 +49,7 @@ namespace ui {
 			base::writer where;
 
 			where.hex ( address, cols.digits );
-			out.put ( where.text ( ), tone::ADDRESS );
+			out.put ( where.text ( ), !patches.empty ( ) && is_patched ( address, item.kind == line_kind::CODE || item.address + item.size <= address ? 1 : static_cast < int32_t > ( base::min < uint64_t > ( item.stride, item.address + item.size - address ) ) ) ? tone::WARNING : tone::ADDRESS );
 
 		};
 
@@ -228,6 +228,9 @@ namespace ui {
 
 				out.instruction = true;
 
+				if ( !patches.empty ( ) && out.count && is_patched ( address, ins.length ) )
+					out.runs [ 0 ].color = tone::WARNING;
+
 				if ( cols.bytes && mapped ) {
 
 					base::writer bytes;
@@ -283,6 +286,7 @@ namespace ui {
 				}
 
 				const wchar_t* note = user_text ( comments, address );
+				const wchar_t* stacked = nullptr;
 				base::writer annotation;
 				tone note_tone = tone::COMMENT;
 				uint64_t note_target = 0;
@@ -290,6 +294,11 @@ namespace ui {
 				if ( note ) {
 
 					annotation.add ( L"; " ).add ( note );
+
+				} else if ( ins.name == x86::mnemonic::mov && ins.operands [ 0 ].type == x86::kind::MEM && ( stacked = stack_string ( address ) ) != nullptr ) {
+
+					annotation.add ( stacked );
+					note_tone = tone::STRING;
 
 				} else {
 

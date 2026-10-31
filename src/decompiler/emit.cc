@@ -143,11 +143,16 @@ namespace decompiler {
 		int32_t next_number = 1;
 		int32_t gotos = 0;
 		int32_t depth = 0;
+		bool no_ternary = false;
+		int32_t next_temp = 1;
+		base::list < int32_t > hoisted;
+		base::list < int32_t > hoisted_temp;
 
 		explicit emitter ( builder& owner ) : b ( owner ) {
 
 			out.spaced = owner.names && owner.names->spaced ( );
 			out.names = owner.names;
+			no_ternary = owner.names && owner.names->expand_ternary ( );
 
 		}
 
@@ -236,7 +241,7 @@ namespace decompiler {
 			} else if ( item.kind == var_kind::STACK ) {
 
 				hex ( static_cast < uint64_t > ( item.offset < 0 ? -item.offset : item.offset ), digits );
-				add ( item.offset < 0 ? L"local_" : L"arg_" );
+				add ( item.offset < 0 ? L"local_" : L"home_" );
 				add ( digits );
 
 			} else {
@@ -710,6 +715,18 @@ namespace decompiler {
 
 			}
 
+			for ( int32_t h = 0; h < hoisted.count ( ); h++ ) {
+
+				if ( hoisted [ static_cast < size_t > ( h ) ] == index ) {
+
+					out.put ( base::writer ( ).add ( L"t" ).number ( hoisted_temp [ static_cast < size_t > ( h ) ] ).text ( ), syntax::LOCAL );
+
+					return;
+
+				}
+
+			}
+
 			const expr item = b.exprs [ static_cast < size_t > ( index ) ];
 			int32_t mine = precedence ( item.kind );
 			bool wrap = mine < parent;
@@ -1072,6 +1089,251 @@ namespace decompiler {
 
 		}
 
+		void collect_ternaries ( int32_t index, base::list < int32_t >& found, bool top ) {
+
+			if ( index < 0 || found.count ( ) >= 8 )
+				return;
+
+			const expr item = b.exprs [ static_cast < size_t > ( index ) ];
+
+			for ( int32_t done : hoisted ) {
+
+				if ( done == index )
+					return;
+
+			}
+
+			switch ( item.kind ) {
+
+				case op::TERNARY:
+
+					if ( !top )
+						found.push ( index );
+
+					return;
+
+				case op::LAND:
+				case op::LOR:
+					collect_ternaries ( item.a, found, false );
+					return;
+
+				case op::CALL:
+				case op::INTRINSIC:
+
+					if ( item.kind == op::CALL && !item.value )
+						collect_ternaries ( item.a, found, false );
+
+					for ( int32_t i = 0; i < item.arg_count; i++ )
+						collect_ternaries ( b.args [ static_cast < size_t > ( item.first_arg + i ) ], found, false );
+
+					return;
+
+				case op::CONST:
+				case op::REAL:
+				case op::VAR:
+				case op::GLOBAL:
+				case op::TEXT:
+					return;
+
+				default:
+					collect_ternaries ( item.a, found, false );
+					collect_ternaries ( item.b, found, false );
+					return;
+
+			}
+
+		}
+
+		bool hoist ( int32_t index, uint64_t address ) {
+
+			base::list < int32_t > found;
+
+			collect_ternaries ( index, found, false );
+
+			for ( int32_t chosen : found ) {
+
+				const expr item = b.exprs [ static_cast < size_t > ( chosen ) ];
+				int32_t number = next_temp++;
+
+				hoist ( item.a, address );
+				out.begin ( address );
+				type_name ( item.size, item.bits, false );
+				out.put ( L" " );
+				out.put ( base::writer ( ).add ( L"t" ).number ( number ).text ( ), syntax::LOCAL );
+				out.put ( L";" );
+				out.finish ( );
+				out.begin ( address );
+				branch_open ( item.a, address );
+				branch_assign ( -1, item.b, address, number );
+				branch_else ( address );
+				branch_assign ( -1, item.c, address, number );
+				branch_close ( );
+				out.finish ( );
+				hoisted.push ( chosen );
+				hoisted_temp.push ( number );
+
+			}
+
+			return !found.empty ( );
+
+		}
+
+		void assign_target ( int32_t left ) {
+
+			if ( b.exprs [ static_cast < size_t > ( left ) ].kind == op::LOAD )
+				lvalue_or_load ( b.exprs [ static_cast < size_t > ( left ) ], 0 );
+			else
+				value ( left, 0 );
+
+		}
+
+		void branch_open ( int32_t test, uint64_t address ) {
+
+			out.put ( L"if", syntax::CONTROL );
+			out.put ( L" (" );
+			value ( test, 0 );
+			out.put ( L") {" );
+			out.finish ( );
+			out.indent++;
+			out.begin ( address );
+
+		}
+
+		void branch_else ( uint64_t address ) {
+
+			out.finish ( );
+			out.indent--;
+			out.begin ( 0 );
+			out.put ( L"} " );
+			out.put ( L"else", syntax::CONTROL );
+			out.put ( L" {" );
+			out.finish ( );
+			out.indent++;
+			out.begin ( address );
+
+		}
+
+		void branch_close ( ) {
+
+			out.finish ( );
+			out.indent--;
+			out.begin ( 0 );
+			out.put ( L"}" );
+
+		}
+
+		bool split_ternary ( int32_t chosen, int32_t& test, int32_t& yes, int32_t& no ) {
+
+			const expr& pick = b.exprs [ static_cast < size_t > ( chosen ) ];
+
+			if ( pick.kind == op::TERNARY ) {
+
+				test = pick.a;
+				yes = pick.b;
+				no = pick.c;
+
+				return true;
+
+			}
+
+			if ( pick.kind != op::CAST || pick.a < 0 || b.exprs [ static_cast < size_t > ( pick.a ) ].kind != op::TERNARY )
+				return false;
+
+			uint8_t size = pick.size;
+			uint8_t bits = pick.bits;
+			const expr& inner = b.exprs [ static_cast < size_t > ( pick.a ) ];
+			int32_t inner_yes = inner.b;
+			int32_t inner_no = inner.c;
+
+			test = inner.a;
+			yes = b.cast ( inner_yes, size, bits );
+			no = b.cast ( inner_no, size, bits );
+
+			return true;
+
+		}
+
+		void branch_assign ( int32_t left, int32_t chosen, uint64_t address, int32_t temp = 0 ) {
+
+			int32_t test = -1;
+			int32_t yes = -1;
+			int32_t no = -1;
+
+			if ( split_ternary ( chosen, test, yes, no ) ) {
+
+				if ( hoist ( test, address ) )
+					out.begin ( address );
+
+				branch_open ( test, address );
+				branch_assign ( left, yes, address, temp );
+				branch_else ( address );
+				branch_assign ( left, no, address, temp );
+				branch_close ( );
+
+				return;
+
+			}
+
+			bool lifted = hoist ( chosen, address );
+
+			if ( temp <= 0 )
+				lifted = hoist ( left, address ) || lifted;
+
+			if ( lifted )
+				out.begin ( address );
+
+			const expr& pick = b.exprs [ static_cast < size_t > ( chosen ) ];
+			int32_t size = temp > 0 ? 0 : b.exprs [ static_cast < size_t > ( left ) ].size;
+			bool float_constant = temp <= 0 && pick.kind == op::CONST && !( pick.bits & POINTER ) && ( size == 4 || size == 8 ) && float_target ( left );
+			int64_t constant = pick.value;
+
+			if ( temp > 0 )
+				out.put ( base::writer ( ).add ( L"t" ).number ( temp ).text ( ), syntax::LOCAL );
+			else
+				assign_target ( left );
+
+			out.put ( L" = ", syntax::OPERATOR );
+
+			if ( float_constant )
+				real ( constant, size == 4 ? 4 : 8 );
+			else
+				value ( chosen, 2 );
+
+			out.put ( L";" );
+
+		}
+
+		void branch_return ( int32_t chosen, uint64_t address ) {
+
+			int32_t test = -1;
+			int32_t yes = -1;
+			int32_t no = -1;
+
+			if ( split_ternary ( chosen, test, yes, no ) ) {
+
+				if ( hoist ( test, address ) )
+					out.begin ( address );
+
+				branch_open ( test, address );
+				branch_return ( yes, address );
+				branch_else ( address );
+				branch_return ( no, address );
+				branch_close ( );
+
+				return;
+
+			}
+
+			if ( hoist ( chosen, address ) )
+				out.begin ( address );
+
+			out.put ( L"return", syntax::CONTROL );
+			out.put ( L" " );
+			value ( chosen, 0 );
+			out.put ( L";" );
+
+		}
+
 		void statement_line ( const statement& item ) {
 
 			if ( item.kind == stmt::NOP )
@@ -1080,15 +1342,20 @@ namespace decompiler {
 			if ( dry )
 				return;
 
+			hoisted.clear ( );
+			hoisted_temp.clear ( );
 			out.begin ( item.address );
+
+			if ( no_ternary && item.kind == stmt::EXPR && hoist ( item.right, item.address ) )
+				out.begin ( item.address );
 
 			switch ( item.kind ) {
 
 				case stmt::ASSIGN:
 				case stmt::STORE: {
 
-					const expr& left = b.exprs [ static_cast < size_t > ( item.left ) ];
-					const expr& right = b.exprs [ static_cast < size_t > ( item.right ) ];
+					const expr left = b.exprs [ static_cast < size_t > ( item.left ) ];
+					const expr right = b.exprs [ static_cast < size_t > ( item.right ) ];
 
 					if ( right.kind == op::ADD && right.a >= 0 && left.kind == op::VAR && b.exprs [ static_cast < size_t > ( right.a ) ].kind == op::VAR && b.exprs [ static_cast < size_t > ( right.a ) ].value == left.value && b.exprs [ static_cast < size_t > ( right.b ) ].kind == op::CONST && !( right.bits & FLOATING ) ) {
 
@@ -1108,6 +1375,32 @@ namespace decompiler {
 						out.put ( L";" );
 
 						break;
+
+					}
+
+					int32_t test = -1;
+					int32_t yes = -1;
+					int32_t no = -1;
+
+					if ( no_ternary && split_ternary ( item.right, test, yes, no ) ) {
+
+						if ( hoist ( item.left, item.address ) )
+							out.begin ( item.address );
+
+						branch_assign ( item.left, item.right, item.address );
+
+						break;
+
+					}
+
+					if ( no_ternary ) {
+
+						bool lifted = hoist ( item.left, item.address );
+
+						lifted = hoist ( item.right, item.address ) || lifted;
+
+						if ( lifted )
+							out.begin ( item.address );
 
 					}
 
@@ -1147,6 +1440,8 @@ namespace decompiler {
 			}
 
 			out.finish ( );
+			hoisted.clear ( );
+			hoisted_temp.clear ( );
 
 		}
 
@@ -1239,6 +1534,14 @@ namespace decompiler {
 
 			}
 
+			int32_t shown = condition >= 0 && negated ? b.negate ( condition ) : condition;
+
+			hoisted.clear ( );
+			hoisted_temp.clear ( );
+
+			if ( no_ternary && shown >= 0 && keyword [ 0 ] == L'i' && keyword [ 1 ] == L'f' && !keyword [ 2 ] )
+				hoist ( shown, address );
+
 			out.begin ( address );
 			out.put ( keyword, syntax::CONTROL );
 
@@ -1251,7 +1554,7 @@ namespace decompiler {
 				if ( test.kind == op::CONST && !negated )
 					out.put ( test.value ? L"true" : L"false", syntax::KEYWORD );
 				else
-					value ( negated ? b.negate ( condition ) : condition, 0 );
+					value ( shown, 0 );
 
 				out.put ( L")" );
 
@@ -1260,6 +1563,8 @@ namespace decompiler {
 			out.put ( L" {" );
 			out.finish ( );
 			out.indent++;
+			hoisted.clear ( );
+			hoisted_temp.clear ( );
 
 		}
 
@@ -1285,13 +1590,37 @@ namespace decompiler {
 			if ( dry )
 				return;
 
+			int32_t test = -1;
+			int32_t yes = -1;
+			int32_t no = -1;
+			bool shown = item.returned >= 0 && ( b.returns_value || item.end == term::TAIL );
+
+			hoisted.clear ( );
+			hoisted_temp.clear ( );
 			out.begin ( item.last );
+
+			if ( no_ternary && shown && b.returns_value && split_ternary ( item.returned, test, yes, no ) ) {
+
+				branch_return ( item.returned, item.last );
+				out.finish ( );
+				out.terminal = true;
+				hoisted.clear ( );
+				hoisted_temp.clear ( );
+
+				return;
+
+			}
+
+			if ( no_ternary && shown && hoist ( item.returned, item.last ) )
+				out.begin ( item.last );
 
 			if ( item.end == term::TAIL && !b.returns_value && item.returned >= 0 ) {
 
 				value ( item.returned, 0 );
 				out.put ( L";" );
 				out.finish ( );
+				hoisted.clear ( );
+				hoisted_temp.clear ( );
 
 				return;
 
@@ -1299,7 +1628,7 @@ namespace decompiler {
 
 			out.put ( L"return", syntax::CONTROL );
 
-			if ( item.returned >= 0 && ( b.returns_value || item.end == term::TAIL ) ) {
+			if ( shown ) {
 
 				out.put ( L" " );
 				value ( item.returned, 0 );
@@ -1309,6 +1638,8 @@ namespace decompiler {
 			out.put ( L";" );
 			out.finish ( );
 			out.terminal = true;
+			hoisted.clear ( );
+			hoisted_temp.clear ( );
 
 		}
 
@@ -1834,6 +2165,7 @@ namespace decompiler {
 			labeled.fill ( static_cast < size_t > ( count ), 0 );
 			gotos = 0;
 			depth = 0;
+			next_temp = 1;
 
 			frame top;
 
@@ -2437,7 +2769,7 @@ namespace decompiler {
 			} else if ( item.kind == var_kind::STACK ) {
 
 				head.out.put ( L"  " );
-				head.out.put ( base::writer ( ).add ( L"// [rsp" ).add ( item.offset < 0 ? L"-0x" : L"+0x" ).hex ( static_cast < uint64_t > ( item.offset < 0 ? -item.offset : item.offset ) ).add ( L"] at entry" ).text ( ), syntax::COMMENT );
+				head.out.put ( base::writer ( ).add ( L"// [rsp" ).add ( item.offset < 0 ? L"-0x" : L"+0x" ).hex ( static_cast < uint64_t > ( item.offset < 0 ? -item.offset : item.offset ) ).add ( item.offset < 0 ? L"] at entry" : L"] at entry, the caller's home space" ).text ( ), syntax::COMMENT );
 
 			}
 

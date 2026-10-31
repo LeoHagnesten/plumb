@@ -118,6 +118,13 @@ namespace ui {
 
 		}
 
+		if ( building ) {
+
+			delete building;
+			building = nullptr;
+
+		}
+
 	}
 
 	void app::resize ( int32_t width_px, int32_t height_px, float dpi_scale ) {
@@ -236,14 +243,19 @@ namespace ui {
 
 		if ( down ) {
 
+			double now_time = base::seconds ( );
+			float dx = mouse.x - press_at.x;
+			float dy = mouse.y - press_at.y;
+
 			press_event = true;
 			mouse_down = true;
-			press_at = mouse;
 
-			if ( clock - last_press < 0.4 )
+			if ( now_time - last_press < 0.45 && dx * dx + dy * dy < 25.0f && !double_event_last )
 				double_event = true;
 
-			last_press = clock;
+			double_event_last = double_event;
+			press_at = mouse;
+			last_press = now_time;
 
 		} else {
 
@@ -847,7 +859,7 @@ namespace ui {
 		begin_input ( );
 		caret_live = false;
 
-		if ( analysis_done && !analysis_applied )
+		if ( analysis_done && ( !analysis_applied || building ) )
 			analysis_finished ( );
 
 		poll_debugger ( );

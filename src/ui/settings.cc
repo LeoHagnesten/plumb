@@ -117,6 +117,15 @@ namespace ui {
 
 		}
 
+		for ( const patched_byte& item : patches ) {
+
+			base::writer line;
+
+			line.add ( L"pb " ).hex ( item.offset ).add ( L" " ).hex ( item.value, 2 ).add ( L" " ).hex ( item.original, 2 );
+			push_line ( line );
+
+		}
+
 		for ( const local_entry& entry : locals ) {
 
 			base::writer line;
@@ -157,6 +166,11 @@ namespace ui {
 		locals.clear ( );
 		breakpoints.clear ( );
 		structs.clear ( );
+
+		base::list < patched_byte > before = base::move ( patches );
+
+		for ( int32_t i = before.count ( ) - 1; i >= 0; i-- )
+			file.poke ( before [ static_cast < size_t > ( i ) ].offset, before [ static_cast < size_t > ( i ) ].original );
 
 		const char* cursor = data;
 
@@ -233,6 +247,18 @@ namespace ui {
 				set_user_text ( prototypes, address, at );
 			else if ( base::same_text ( key, L"bp" ) )
 				breakpoints.push ( address );
+			else if ( base::same_text ( key, L"pb" ) ) {
+
+				wchar_t* value_text = take_word ( );
+				uint32_t value = 0;
+
+				for ( wchar_t* c = value_text; *c; c++ )
+					value = ( value << 4 ) | static_cast < uint32_t > ( *c >= L'a' ? *c - L'a' + 10 : ( *c >= L'A' ? *c - L'A' + 10 : *c - L'0' ) );
+
+				if ( file.loaded ( ) && address < file.size && value_text [ 0 ] )
+					set_byte ( address, static_cast < uint8_t > ( value ) );
+
+			}
 			else if ( base::same_text ( key, L"local" ) ) {
 
 				wchar_t* local_key = take_word ( );
@@ -281,6 +307,14 @@ namespace ui {
 
 		names_revision++;
 		refresh_filter ( panel::STRUCTS );
+
+		bool same = before.count ( ) == patches.count ( );
+
+		for ( int32_t i = 0; same && i < patches.count ( ); i++ )
+			same = before [ static_cast < size_t > ( i ) ].offset == patches [ static_cast < size_t > ( i ) ].offset && before [ static_cast < size_t > ( i ) ].value == patches [ static_cast < size_t > ( i ) ].value;
+
+		if ( !same )
+			reanalyze ( );
 
 	}
 
@@ -466,6 +500,7 @@ namespace ui {
 
 		put_line ( out, "theme", light ? L"light" : L"dark" );
 		put_line ( out, "c_spaced", c_spaced ? L"1" : L"0" );
+		put_line ( out, "c_no_ternary", c_no_ternary ? L"1" : L"0" );
 		put_line ( out, "autosave", autosave ? L"1" : L"0" );
 		put_line ( out, "opcode_bytes", show_bytes ? L"1" : L"0" );
 		value.number ( static_cast < int64_t > ( dock_size [ 0 ] ) ).add ( L',' ).number ( static_cast < int64_t > ( dock_size [ 1 ] ) ).add ( L',' ).number ( static_cast < int64_t > ( dock_size [ 2 ] ) );
@@ -588,6 +623,8 @@ namespace ui {
 				light = base::same_text ( value, L"light" );
 			else if ( named ( "c_spaced" ) )
 				c_spaced = value [ 0 ] == L'1';
+			else if ( named ( "c_no_ternary" ) )
+				c_no_ternary = value [ 0 ] == L'1';
 			else if ( named ( "autosave" ) )
 				autosave = value [ 0 ] == L'1';
 			else if ( named ( "opcode_bytes" ) )

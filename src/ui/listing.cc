@@ -905,6 +905,44 @@ namespace ui {
 
 			}
 
+		} else if ( showing == view::CALLS ) {
+
+			int32_t owner = db && analysis_applied ? db->function_at ( address ) : -1;
+
+			if ( owner >= 0 ) {
+
+				uint64_t start = db->functions [ static_cast < size_t > ( owner ) ].start;
+
+				if ( remember && now->function != start ) {
+
+					now->back_stack.push ( now->function );
+					now->forward_stack.clear ( );
+
+				}
+
+				now->function = start;
+				now->cursor_address = start;
+				pending = base::max ( pending, 2 );
+
+				return;
+
+			}
+
+			int32_t listing = -1;
+			pane& item = panes [ focused_pane ];
+
+			for ( int32_t i = 0; i < item.count; i++ ) {
+
+				if ( documents [ item.tabs [ i ] ].kind == view::LISTING )
+					listing = i;
+
+			}
+
+			if ( listing >= 0 )
+				focus_document ( focused_pane, listing );
+			else
+				open_document ( view::LISTING, focused_pane, address );
+
 		} else if ( showing == view::HEADERS ) {
 
 			int32_t listing = -1;
