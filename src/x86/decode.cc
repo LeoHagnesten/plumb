@@ -1,4 +1,5 @@
 #include "x86/x86.hh"
+#include "x86/forms.hh"
 
 namespace x86 {
 
@@ -22,6 +23,7 @@ namespace x86 {
 		BY, ER8, ER16, AP,
 		R_ES, R_CS, R_SS, R_DS, R_FS, R_GS,
 		KR, KRM, KV, KB, KGR, KGB,
+		EWV, EZ, GZ, GA, MZ, RD, RQ, RA, R_AX16,
 
 	};
 
@@ -388,8 +390,11 @@ namespace x86 {
 		put ( 1, 0x07, PANY, mnemonic::sysret, NO, NO, NO, NO, 0 );
 		put ( 1, 0x08, PANY, mnemonic::invd, NO, NO, NO, NO, 0 );
 		put ( 1, 0x09, PANY, mnemonic::wbinvd, NO, NO, NO, NO, 0 );
+		put ( 1, 0x09, PF3, mnemonic::wbnoinvd, NO, NO, NO, NO, 0 );
 		put ( 1, 0x0B, PANY, mnemonic::ud2, NO, NO, NO, NO, 0 );
 		put_group ( 1, 0x0D, PANY, G_PREFETCH, M0, NO, NOWRITE );
+		put ( 1, 0x0E, PANY, mnemonic::femms, NO, NO, NO, NO, 0 );
+		put ( 1, 0x0F, PANY, mnemonic::pfadd, PQ, QQ, NO, NO, MODRM | NO_VEX );
 
 		put ( 1, 0x10, PN, mnemonic::movups, VX, WX );
 		put ( 1, 0x10, P66, mnemonic::movupd, VX, WX );
@@ -433,6 +438,8 @@ namespace x86 {
 		put ( 1, 0x2A, PF2, mnemonic::cvtsi2sd, VO, EY, NO, NO, MODRM | NDS );
 		put ( 1, 0x2B, PN, mnemonic::movntps, MX, VX );
 		put ( 1, 0x2B, P66, mnemonic::movntpd, MX, VX );
+		put ( 1, 0x2B, PF3, mnemonic::movntss, MD, VO, NO, NO, MODRM | NO_VEX );
+		put ( 1, 0x2B, PF2, mnemonic::movntsd, MQ, VO, NO, NO, MODRM | NO_VEX );
 		put ( 1, 0x2C, PN, mnemonic::cvttps2pi, PQ, WQ, NO, NO, MODRM | NO_VEX );
 		put ( 1, 0x2C, P66, mnemonic::cvttpd2pi, PQ, WO, NO, NO, MODRM | NO_VEX );
 		put ( 1, 0x2C, PF3, mnemonic::cvttss2si, GY, WD );
@@ -461,8 +468,8 @@ namespace x86 {
 
 		}
 
-		put ( 1, 0x50, PN, mnemonic::movmskps, GY, UX );
-		put ( 1, 0x50, P66, mnemonic::movmskpd, GY, UX );
+		put ( 1, 0x50, PN, mnemonic::movmskps, GD, UX );
+		put ( 1, 0x50, P66, mnemonic::movmskpd, GD, UX );
 		put ( 1, 0x51, PN, mnemonic::sqrtps, VX, WX );
 		put ( 1, 0x51, P66, mnemonic::sqrtpd, VX, WX );
 		put ( 1, 0x51, PF3, mnemonic::sqrtss, VO, WD, NO, NO, MODRM | NDS );
@@ -509,8 +516,17 @@ namespace x86 {
 
 		const mnemonic unpack [ 12 ] = { mnemonic::punpcklbw, mnemonic::punpcklwd, mnemonic::punpckldq, mnemonic::packsswb, mnemonic::pcmpgtb, mnemonic::pcmpgtw, mnemonic::pcmpgtd, mnemonic::packuswb, mnemonic::punpckhbw, mnemonic::punpckhwd, mnemonic::punpckhdq, mnemonic::packssdw };
 
-		for ( int32_t i = 0; i < 12; i++ )
-			simd ( 0x60 + i, unpack [ i ], true );
+		for ( int32_t i = 0; i < 12; i++ ) {
+
+			if ( i < 3 ) {
+
+				put ( 1, 0x60 + i, PN, unpack [ i ], PQ, QD, NO, NO, MODRM | NO_VEX );
+				put ( 1, 0x60 + i, P66, unpack [ i ], VX, WX, NO, NO, MODRM | NDS );
+
+			} else
+				simd ( 0x60 + i, unpack [ i ], true );
+
+		}
 
 		put ( 1, 0x6C, P66, mnemonic::punpcklqdq, VX, WX, NO, NO, MODRM | NDS );
 		put ( 1, 0x6D, P66, mnemonic::punpckhqdq, VX, WX, NO, NO, MODRM | NDS );
@@ -530,8 +546,12 @@ namespace x86 {
 		simd ( 0x75, mnemonic::pcmpeqw, true );
 		simd ( 0x76, mnemonic::pcmpeqd, true );
 		put ( 1, 0x77, PN, mnemonic::emms, NO, NO, NO, NO, 0 );
-		put ( 1, 0x78, PN, mnemonic::vmread, EY, GY, NO, NO, MODRM | NO_VEX );
-		put ( 1, 0x79, PN, mnemonic::vmwrite, GY, EY, NO, NO, MODRM | NO_VEX );
+		put ( 1, 0x78, PN, mnemonic::vmread, EZ, GZ, NO, NO, MODRM | NO_VEX );
+		put ( 1, 0x79, PN, mnemonic::vmwrite, GZ, EZ, NO, NO, MODRM | NO_VEX );
+		put ( 1, 0x78, P66, mnemonic::extrq, UO, IB, IB, NO, MODRM | NO_VEX );
+		put ( 1, 0x78, PF2, mnemonic::insertq, VO, UO, IB, IB, MODRM | NO_VEX );
+		put ( 1, 0x79, P66, mnemonic::extrq, VO, UO, NO, NO, MODRM | NO_VEX );
+		put ( 1, 0x79, PF2, mnemonic::insertq, VO, UO, NO, NO, MODRM | NO_VEX );
 		put ( 1, 0x7C, P66, mnemonic::haddpd, VX, WX, NO, NO, MODRM | NDS );
 		put ( 1, 0x7C, PF2, mnemonic::haddps, VX, WX, NO, NO, MODRM | NDS );
 		put ( 1, 0x7D, P66, mnemonic::hsubpd, VX, WX, NO, NO, MODRM | NDS );
@@ -591,7 +611,7 @@ namespace x86 {
 		put_group ( 1, 0xC7, PANY, G9, NO, NO, 0 );
 
 		for ( int32_t i = 0; i < 8; i++ )
-			put ( 1, 0xC8 + i, PANY, mnemonic::bswap, ZY, NO, NO, NO, 0 );
+			put ( 1, 0xC8 + i, PANY, mnemonic::bswap, ZV, NO, NO, NO, 0 );
 
 		put ( 1, 0xD0, P66, mnemonic::addsubpd, VX, WX, NO, NO, MODRM | NDS );
 		put ( 1, 0xD0, PF2, mnemonic::addsubps, VX, WX, NO, NO, MODRM | NDS );
@@ -648,7 +668,7 @@ namespace x86 {
 		const mnemonic g6 [ 6 ] = { mnemonic::sldt, mnemonic::str, mnemonic::lldt, mnemonic::ltr, mnemonic::verr, mnemonic::verw };
 
 		for ( int32_t i = 0; i < 6; i++ )
-			in_group ( G6, i, g6 [ i ], EW );
+			in_group ( G6, i, g6 [ i ], i < 2 ? EWV : EW );
 
 		in_group ( G7, 0, mnemonic::sgdt, M0 );
 		in_group ( G7, 1, mnemonic::sidt, M0 );
@@ -667,6 +687,7 @@ namespace x86 {
 		in_group ( G16, 3, mnemonic::prefetcht2 );
 		in_group ( G_PREFETCH, 0, mnemonic::prefetch );
 		in_group ( G_PREFETCH, 1, mnemonic::prefetchw );
+		in_group ( G_PREFETCH, 2, mnemonic::prefetchwt1 );
 
 	}
 
@@ -764,6 +785,33 @@ namespace x86 {
 
 		}
 
+		put ( 2, 0x80, P66, mnemonic::invept, GZ, MO, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0x81, P66, mnemonic::invvpid, GZ, MO, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0x82, P66, mnemonic::invpcid, GZ, MO, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xC8, PN, mnemonic::sha1nexte, VO, WO, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xC9, PN, mnemonic::sha1msg1, VO, WO, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xCA, PN, mnemonic::sha1msg2, VO, WO, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xCB, PN, mnemonic::sha256rnds2, VO, WO, XMM0_, NO, MODRM | NO_VEX );
+		put ( 2, 0xCC, PN, mnemonic::sha256msg1, VO, WO, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xCD, PN, mnemonic::sha256msg2, VO, WO, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xCF, P66, mnemonic::gf2p8mulb, VX, WX, NO, NO, MODRM | NDS );
+		put ( 2, 0xD8, PF3, mnemonic::aesencwide128kl, M0, NO, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xDC, PF3, mnemonic::aesenc128kl, VO, M0, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xDD, PF3, mnemonic::aesdec128kl, VO, M0, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xDE, PF3, mnemonic::aesenc256kl, VO, M0, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xDF, PF3, mnemonic::aesdec256kl, VO, M0, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xF5, P66, mnemonic::wrussd, MY, GY, NO, NO, MODRM | NO_VEX | W_NAME );
+		put ( 2, 0xF6, PN, mnemonic::wrssd, MY, GY, NO, NO, MODRM | NO_VEX | W_NAME );
+		put ( 2, 0xF8, P66, mnemonic::movdir64b, GA, MZ, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xF8, PF3, mnemonic::enqcmds, GA, MZ, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xF8, PF2, mnemonic::enqcmd, GA, MZ, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xF9, PN, mnemonic::movdiri, MY, GY, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xFA, PF3, mnemonic::encodekey128, GD, RD, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xFB, PF3, mnemonic::encodekey256, GD, RD, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xFC, PN, mnemonic::aadd, MY, GY, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xFC, P66, mnemonic::aand, MY, GY, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xFC, PF2, mnemonic::aor, MY, GY, NO, NO, MODRM | NO_VEX );
+		put ( 2, 0xFC, PF3, mnemonic::axor, MY, GY, NO, NO, MODRM | NO_VEX );
 		put ( 2, 0xDB, P66, mnemonic::aesimc, VO, WO );
 		put ( 2, 0xDC, P66, mnemonic::aesenc, VO, WO, NO, NO, MODRM | NDS );
 		put ( 2, 0xDD, P66, mnemonic::aesenclast, VO, WO, NO, NO, MODRM | NDS );
@@ -828,6 +876,9 @@ namespace x86 {
 		put ( 3, 0x61, P66, mnemonic::pcmpestri, VO, WO, IB, NO, MODRM | NOWRITE );
 		put ( 3, 0x62, P66, mnemonic::pcmpistrm, VO, WO, IB, NO, MODRM | NOWRITE );
 		put ( 3, 0x63, P66, mnemonic::pcmpistri, VO, WO, IB, NO, MODRM | NOWRITE );
+		put ( 3, 0xCC, PN, mnemonic::sha1rnds4, VO, WO, IB, NO, MODRM | NO_VEX );
+		put ( 3, 0xCE, P66, mnemonic::gf2p8affineqb, VX, WX, IB, NO, MODRM | NDS );
+		put ( 3, 0xCF, P66, mnemonic::gf2p8affineinvqb, VX, WX, IB, NO, MODRM | NDS );
 		put ( 3, 0xDF, P66, mnemonic::aeskeygenassist, VO, WO, IB );
 		put ( 3, 0xF0, PF2, mnemonic::rorx, GY, EY, IB, NO, MODRM | VEX_ONLY );
 
@@ -946,7 +997,7 @@ namespace x86 {
 		row ( 6, 6, mnemonic::fdivrp, STI, ST0_ );
 		row ( 6, 7, mnemonic::fdivp, STI, ST0_ );
 		row ( 7, 0, mnemonic::ffreep, STI, NO );
-		x87_register [ 7 ] [ 0x20 ] = make ( mnemonic::fnstsw, R_AX, NO, NO, NO, 0 );
+		x87_register [ 7 ] [ 0x20 ] = make ( mnemonic::fnstsw, R_AX16, NO, NO, NO, 0 );
 		row ( 7, 5, mnemonic::fucomip, ST0_, STI );
 		row ( 7, 6, mnemonic::fcomip, ST0_, STI );
 
@@ -958,7 +1009,11 @@ namespace x86 {
 
 #undef PLUMB_NAME
 
-	static char name_storage [ 12000 ];
+	static char name_storage [ 40000 ];
+	static int16_t evex_first [ 8 ] [ 256 ];
+	static int16_t evex_count [ 8 ] [ 256 ];
+	static int16_t vex_first [ 4 ] [ 256 ];
+	static int16_t vex_count [ 4 ] [ 256 ];
 
 	static void build_names ( ) {
 
@@ -1013,10 +1068,13 @@ namespace x86 {
 		for ( int32_t i = 0; i < 6; i++ )
 			register_names [ ES + i ] = segments [ i ];
 
+		static const char* const tiles [ 8 ] = { "tmm0", "tmm1", "tmm2", "tmm3", "tmm4", "tmm5", "tmm6", "tmm7" };
+
 		for ( int32_t i = 0; i < 8; i++ ) {
 
 			register_names [ ST0 + i ] = stack [ i ];
 			register_names [ MM0 + i ] = mmx [ i ];
+			register_names [ TMM0 + i ] = tiles [ i ];
 
 		}
 
@@ -1067,6 +1125,25 @@ namespace x86 {
 		build_two_byte ( );
 		build_three_byte ( );
 		build_x87 ( );
+
+		for ( int32_t i = 0; i < evex_forms_count; i++ ) {
+
+			const simd_form& e = evex_forms [ i ];
+
+			if ( !evex_count [ e.map ] [ e.opcode ]++ )
+				evex_first [ e.map ] [ e.opcode ] = static_cast < int16_t > ( i );
+
+		}
+
+		for ( int32_t i = 0; i < vex_forms_count; i++ ) {
+
+			const simd_form& e = vex_forms [ i ];
+
+			if ( !vex_count [ e.map ] [ e.opcode ]++ )
+				vex_first [ e.map ] [ e.opcode ] = static_cast < int16_t > ( i );
+
+		}
+
 		ready = true;
 
 	}
@@ -1122,6 +1199,9 @@ namespace x86 {
 
 		if ( value >= ZMM0 && value < CR0 )
 			return 64;
+
+		if ( value >= TMM0 && value < REG_COUNT )
+			return 0;
 
 		return 8;
 
@@ -1322,6 +1402,9 @@ namespace x86 {
 		uint8_t address_size;
 		operand memory;
 		bool memory_ready;
+		uint8_t sib;
+		uint8_t opcode;
+		bool prefix_used;
 
 	};
 
@@ -1377,6 +1460,8 @@ namespace x86 {
 
 			uint8_t sib = in.byte ( );
 			int32_t index = ( ( sib >> 3 ) & 7 ) | ( s.rex_x ? 8 : 0 );
+
+			s.sib = sib;
 			int32_t base = ( sib & 7 ) | ( s.rex_b ? 8 : 0 );
 
 			m.scale = static_cast < uint8_t > ( 1 << ( sib >> 6 ) );
@@ -1451,22 +1536,6 @@ namespace x86 {
 
 			item = s.memory;
 			item.size = size;
-
-			if ( s.evex ) {
-
-				uint8_t element = static_cast < uint8_t > ( s.rex_w ? 8 : 4 );
-
-				if ( s.broadcast ) {
-
-					item.size = element;
-					out.broadcast = static_cast < uint8_t > ( w / element );
-
-				}
-
-				if ( out.displacement_size == 1 )
-					item.value *= s.broadcast ? element : ( size ? size : 1 );
-
-			}
 
 		};
 
@@ -1936,12 +2005,195 @@ namespace x86 {
 
 				break;
 
+			case EWV:
+
+				if ( s.mod == 3 )
+					make_reg ( gpr ( rm, os, rex ) );
+				else
+					make_mem ( 2 );
+
+				break;
+
+			case EZ:
+				rm_or_mem ( gpr ( rm, s.long_mode ? 8 : 4, rex ), static_cast < uint8_t > ( s.long_mode ? 8 : 4 ) );
+				break;
+
+			case GZ:
+				make_reg ( gpr ( reg, s.long_mode ? 8 : 4, rex ) );
+				break;
+
+			case GA:
+				make_reg ( gpr ( reg, s.address_size, rex ) );
+				break;
+
+			case MZ:
+
+				if ( s.mod == 3 )
+					return false;
+
+				make_mem ( 64 );
+
+				break;
+
+			case RD:
+			case RQ:
+			case RA:
+
+				if ( s.mod != 3 )
+					return false;
+
+				make_reg ( gpr ( rm, which == RD ? 4 : ( which == RQ ? 8 : s.address_size ), rex ) );
+
+				break;
+
+			case R_AX16:
+				make_reg ( AX );
+				break;
+
 			default:
 				return false;
 
 		}
 
 		return !in.failed;
+
+	}
+
+	static mnemonic amd_3dnow ( uint8_t code ) {
+
+		switch ( code ) {
+
+			case 0x0C:
+				return mnemonic::pi2fw;
+
+			case 0x0D:
+				return mnemonic::pi2fd;
+
+			case 0x1C:
+				return mnemonic::pf2iw;
+
+			case 0x1D:
+				return mnemonic::pf2id;
+
+			case 0x8A:
+				return mnemonic::pfnacc;
+
+			case 0x8E:
+				return mnemonic::pfpnacc;
+
+			case 0x90:
+				return mnemonic::pfcmpge;
+
+			case 0x94:
+				return mnemonic::pfmin;
+
+			case 0x96:
+				return mnemonic::pfrcp;
+
+			case 0x97:
+				return mnemonic::pfrsqrt;
+
+			case 0x9A:
+				return mnemonic::pfsub;
+
+			case 0x9E:
+				return mnemonic::pfadd;
+
+			case 0xA0:
+				return mnemonic::pfcmpgt;
+
+			case 0xA4:
+				return mnemonic::pfmax;
+
+			case 0xA6:
+				return mnemonic::pfrcpit1;
+
+			case 0xA7:
+				return mnemonic::pfrsqit1;
+
+			case 0xAA:
+				return mnemonic::pfsubr;
+
+			case 0xAE:
+				return mnemonic::pfacc;
+
+			case 0xB0:
+				return mnemonic::pfcmpeq;
+
+			case 0xB4:
+				return mnemonic::pfmul;
+
+			case 0xB6:
+				return mnemonic::pfrcpit2;
+
+			case 0xB7:
+				return mnemonic::pmulhrw;
+
+			case 0xBB:
+				return mnemonic::pswapd;
+
+			case 0xBF:
+				return mnemonic::pavgusb;
+
+			default:
+				return mnemonic::invalid;
+
+		}
+
+	}
+
+	static bool refine ( form& f, state& s, int32_t map, uint8_t opcode, uint8_t mandatory ) {
+
+		if ( map == 1 && ( opcode == 0x12 || opcode == 0x16 ) && mandatory <= 1 && s.mod == 3 ) {
+
+			f.name = opcode == 0x12 ? mnemonic::movhlps : mnemonic::movlhps;
+			f.ops [ 0 ] = VO;
+			f.ops [ 1 ] = UO;
+
+		}
+
+		if ( map == 1 && ( opcode == 0x78 || opcode == 0x79 ) && ( mandatory == 1 || mandatory == 3 ) && !s.vex && s.mod != 3 ) {
+
+			f.name = opcode == 0x78 ? mnemonic::vmread : mnemonic::vmwrite;
+			f.ops [ 0 ] = opcode == 0x78 ? EZ : GZ;
+			f.ops [ 1 ] = opcode == 0x78 ? GZ : EZ;
+			f.ops [ 2 ] = NO;
+			f.ops [ 3 ] = NO;
+
+		}
+
+		if ( map == 2 && !s.vex && mandatory == 2 ) {
+
+			if ( opcode == 0xDC && s.mod == 3 ) {
+
+				f.name = mnemonic::loadiwkey;
+				f.ops [ 0 ] = VO;
+				f.ops [ 1 ] = UO;
+
+			}
+
+			if ( opcode == 0xD8 ) {
+
+				if ( s.mod == 3 || s.reg > 3 )
+					return false;
+
+				const mnemonic wide [ 4 ] = { mnemonic::aesencwide128kl, mnemonic::aesdecwide128kl, mnemonic::aesencwide256kl, mnemonic::aesdecwide256kl };
+
+				f.name = wide [ s.reg ];
+
+			}
+
+		}
+
+		if ( map == 2 && !s.vex && opcode == 0xF8 && ( mandatory == 2 || mandatory == 3 ) && s.mod == 3 ) {
+
+			f.name = mandatory == 2 ? mnemonic::uwrmsr : mnemonic::urdmsr;
+			f.ops [ 0 ] = GQ;
+			f.ops [ 1 ] = RQ;
+
+		}
+
+		return true;
 
 	}
 
@@ -1965,22 +2217,101 @@ namespace x86 {
 
 		switch ( f.group ) {
 
+			case G6:
+
+				if ( r == 6 ) {
+
+					if ( mandatory != 3 || !s.long_mode )
+						return false;
+
+					set ( mnemonic::lkgs, EW, NO, NO, NOWRITE );
+					s.prefix_used = true;
+
+					return true;
+
+				}
+
+				break;
+
 			case G7:
 
 				if ( m == 3 ) {
 
-					static const mnemonic specials [ 8 ] [ 8 ] = {
-						{ mnemonic::invalid, mnemonic::vmcall, mnemonic::vmlaunch, mnemonic::vmresume, mnemonic::vmxoff, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid },
-						{ mnemonic::monitor, mnemonic::mwait, mnemonic::clac, mnemonic::stac, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid },
-						{ mnemonic::xgetbv, mnemonic::xsetbv, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::xend, mnemonic::xtest, mnemonic::invalid },
-						{ mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid },
+					static const mnemonic plain [ 8 ] [ 8 ] = {
+						{ mnemonic::enclv, mnemonic::vmcall, mnemonic::vmlaunch, mnemonic::vmresume, mnemonic::vmxoff, mnemonic::pconfig, mnemonic::wrmsrns, mnemonic::pbndkb },
+						{ mnemonic::monitor, mnemonic::mwait, mnemonic::clac, mnemonic::stac, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::encls },
+						{ mnemonic::xgetbv, mnemonic::xsetbv, mnemonic::invalid, mnemonic::invalid, mnemonic::vmfunc, mnemonic::xend, mnemonic::xtest, mnemonic::enclu },
+						{ mnemonic::vmrun, mnemonic::vmmcall, mnemonic::vmload, mnemonic::vmsave, mnemonic::stgi, mnemonic::clgi, mnemonic::skinit, mnemonic::invlpga },
 						{ mnemonic::smsw, mnemonic::smsw, mnemonic::smsw, mnemonic::smsw, mnemonic::smsw, mnemonic::smsw, mnemonic::smsw, mnemonic::smsw },
-						{ mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::rdpkru, mnemonic::wrpkru },
+						{ mnemonic::serialize, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::rdpkru, mnemonic::wrpkru },
 						{ mnemonic::lmsw, mnemonic::lmsw, mnemonic::lmsw, mnemonic::lmsw, mnemonic::lmsw, mnemonic::lmsw, mnemonic::lmsw, mnemonic::lmsw },
-						{ mnemonic::swapgs, mnemonic::rdtscp, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid, mnemonic::invalid }
+						{ mnemonic::swapgs, mnemonic::rdtscp, mnemonic::monitorx, mnemonic::mwaitx, mnemonic::clzero, mnemonic::rdpru, mnemonic::invlpgb, mnemonic::tlbsync }
 					};
 
-					mnemonic name = specials [ r ] [ low ];
+					uint8_t code = static_cast < uint8_t > ( 0xC0 | r << 3 | low );
+					mnemonic name = plain [ r ] [ low ];
+
+					if ( !s.long_mode && name == mnemonic::pbndkb )
+						return false;
+
+					if ( !s.long_mode && ( code == 0xC6 || code == 0xCA || ( code >= 0xCD && code <= 0xCF ) || ( code >= 0xEC && code <= 0xEF ) || code == 0xFD || code == 0xFE || code == 0xFF ) && mandatory != 0 ) {
+
+						if ( code == 0xFF && mandatory == 3 ) {
+
+							set ( mnemonic::pvalidate, NO, NO, NO, 0 );
+							s.prefix_used = true;
+
+							return true;
+
+						}
+
+						if ( code == 0xEC || code == 0xED )
+							return false;
+
+					} else if ( mandatory == 1 ) {
+
+						if ( code >= 0xCC && code <= 0xCF ) {
+
+							const mnemonic seam [ 4 ] = { mnemonic::tdcall, mnemonic::seamret, mnemonic::seamops, mnemonic::seamcall };
+
+							name = seam [ code - 0xCC ];
+							s.prefix_used = true;
+
+						}
+
+					} else if ( mandatory == 2 ) {
+
+						const uint8_t codes [ 11 ] = { 0xC6, 0xE8, 0xEA, 0xEC, 0xED, 0xEE, 0xEF, 0xFD, 0xFE, 0xFF, 0xCA };
+						const mnemonic names_f3 [ 11 ] = { mnemonic::wrmsrlist, mnemonic::setssbsy, mnemonic::saveprevssp, mnemonic::uiret, mnemonic::testui, mnemonic::clui, mnemonic::stui, mnemonic::rmpquery, mnemonic::rmpadjust, mnemonic::psmash, mnemonic::eretu };
+
+						for ( int32_t i = 0; i < 11; i++ ) {
+
+							if ( codes [ i ] == code ) {
+
+								name = names_f3 [ i ];
+								s.prefix_used = true;
+
+							}
+
+						}
+
+					} else if ( mandatory == 3 ) {
+
+						const uint8_t codes [ 6 ] = { 0xC6, 0xE8, 0xE9, 0xFE, 0xFF, 0xCA };
+						const mnemonic names_f2 [ 6 ] = { mnemonic::rdmsrlist, mnemonic::xsusldtrk, mnemonic::xresldtrk, mnemonic::rmpupdate, mnemonic::pvalidate, mnemonic::erets };
+
+						for ( int32_t i = 0; i < 6; i++ ) {
+
+							if ( codes [ i ] == code ) {
+
+								name = names_f2 [ i ];
+								s.prefix_used = true;
+
+							}
+
+						}
+
+					}
 
 					if ( name == mnemonic::smsw )
 						set ( name, EV, NO, NO, 0 );
@@ -1990,6 +2321,18 @@ namespace x86 {
 						set ( name, NO, NO, NO, 0 );
 
 					return name != mnemonic::invalid;
+
+				}
+
+				if ( r == 5 ) {
+
+					if ( mandatory != 2 )
+						return false;
+
+					set ( mnemonic::rstorssp, MQ, NO, NO, NOWRITE );
+					s.prefix_used = true;
+
+					return true;
 
 				}
 
@@ -2007,11 +2350,49 @@ namespace x86 {
 
 					}
 
+					if ( r >= 3 && r <= 5 ) {
+
+						const mnemonic saves [ 3 ] = { mnemonic::xrstors, mnemonic::xsavec, mnemonic::xsaves };
+
+						set ( saves [ r - 3 ], M0, NO, NO, r == 3 ? NOWRITE : 0 );
+
+						return true;
+
+					}
+
+					if ( r == 6 || r == 7 ) {
+
+						mnemonic name = mnemonic::invalid;
+
+						if ( r == 6 )
+							name = mandatory == 1 ? mnemonic::vmclear : ( mandatory == 2 ? mnemonic::vmxon : mnemonic::vmptrld );
+						else
+							name = mnemonic::vmptrst;
+
+						if ( name == mnemonic::invalid )
+							return false;
+
+						set ( name, MQ, NO, NO, name == mnemonic::vmptrst ? 0 : NOWRITE );
+						s.prefix_used = name == mnemonic::vmclear || name == mnemonic::vmxon;
+
+						return true;
+
+					}
+
 					return false;
 
 				}
 
 				if ( r == 6 ) {
+
+					if ( mandatory == 2 && s.long_mode ) {
+
+						set ( mnemonic::senduipi, RQ, NO, NO, NOWRITE );
+						s.prefix_used = true;
+
+						return true;
+
+					}
 
 					set ( mnemonic::rdrand, EV, NO, NO, 0 );
 
@@ -2034,9 +2415,33 @@ namespace x86 {
 
 			case G15:
 
-				if ( m == 3 ) {
+				if ( m == 3 || ( mandatory == 2 && r == 4 ) ) {
 
-					if ( mandatory == 2 && r < 4 ) {
+					if ( mandatory == 2 && r == 4 ) {
+
+						set ( mnemonic::ptwrite, EY, NO, NO, NOWRITE );
+						s.prefix_used = true;
+
+						return true;
+
+					}
+
+					if ( r == 6 && mandatory != 0 ) {
+
+						if ( mandatory == 1 )
+							set ( mnemonic::tpause, RD, NO, NO, NOWRITE );
+						else if ( mandatory == 3 )
+							set ( mnemonic::umwait, RD, NO, NO, NOWRITE );
+						else
+							set ( mnemonic::umonitor, RA, NO, NO, NOWRITE );
+
+						s.prefix_used = true;
+
+						return true;
+
+					}
+
+					if ( mandatory == 2 && r < 4 && s.long_mode ) {
 
 						const mnemonic base_ops [ 4 ] = { mnemonic::rdfsbase, mnemonic::rdgsbase, mnemonic::wrfsbase, mnemonic::wrgsbase };
 
@@ -2054,7 +2459,7 @@ namespace x86 {
 
 					}
 
-					if ( r >= 5 && mandatory == 0 ) {
+					if ( ( r == 5 && mandatory != 2 ) || ( r == 6 && mandatory == 0 ) || r == 7 ) {
 
 						const mnemonic fences [ 3 ] = { mnemonic::lfence, mnemonic::mfence, mnemonic::sfence };
 
@@ -2077,6 +2482,14 @@ namespace x86 {
 						name = mnemonic::clwb;
 					else if ( mandatory == 1 && r == 7 )
 						name = mnemonic::clflushopt;
+					else if ( mandatory == 2 && r == 6 ) {
+
+						set ( mnemonic::clrssbsy, MQ, NO, NO, 0 );
+						s.prefix_used = true;
+
+						return true;
+
+					}
 
 					set ( name, r == 2 || r == 3 ? MD : M0, NO, NO, r == 2 || r == 7 || r == 1 || r == 5 ? NOWRITE : 0 );
 
@@ -2120,6 +2533,14 @@ namespace x86 {
 
 			case G16:
 
+				if ( m != 3 && r >= 6 && s.long_mode ) {
+
+					set ( r == 7 ? mnemonic::prefetchit0 : mnemonic::prefetchit1, M0, NO, NO, NOWRITE );
+
+					return true;
+
+				}
+
 				if ( m == 3 || r > 3 ) {
 
 					set ( mnemonic::nop, EV, NO, NO, NOWRITE );
@@ -2135,13 +2556,21 @@ namespace x86 {
 				if ( m == 3 )
 					return false;
 
-				set ( r == 1 ? mnemonic::prefetchw : mnemonic::prefetch, M0, NO, NO, NOWRITE );
+				set ( r == 1 ? mnemonic::prefetchw : ( r == 2 ? mnemonic::prefetchwt1 : mnemonic::prefetch ), M0, NO, NO, NOWRITE );
 
 				return true;
 
 			case G_HINT:
 
-				if ( mandatory == 2 && m == 3 && r == 7 && ( low == 2 || low == 3 ) ) {
+				if ( s.opcode == 0x1C && m != 3 && r == 0 ) {
+
+					set ( mnemonic::cldemote, M0, NO, NO, NOWRITE );
+
+					return true;
+
+				}
+
+				if ( s.opcode == 0x1E && mandatory == 2 && m == 3 && r == 7 && ( low == 2 || low == 3 ) ) {
 
 					set ( low == 2 ? mnemonic::endbr64 : mnemonic::endbr32, NO, NO, NO, 0 );
 
@@ -2149,7 +2578,7 @@ namespace x86 {
 
 				}
 
-				if ( mandatory == 2 && m == 3 && r == 1 ) {
+				if ( s.opcode == 0x1E && mandatory == 2 && m == 3 && r == 1 ) {
 
 					set ( s.rex_w ? mnemonic::rdsspq : mnemonic::rdsspd, EY, NO, NO, 0 );
 
@@ -2199,233 +2628,6 @@ namespace x86 {
 
 	}
 
-	static bool vector_form ( const form& f ) {
-
-		if ( f.group == G12 || f.group == G13 || f.group == G14 || f.group == G17 )
-			return true;
-
-		for ( int32_t i = 0; i < 4; i++ ) {
-
-			uint8_t value = f.ops [ i ];
-
-			if ( ( value >= VX && value <= LX ) || value == XMM0_ || value == MX || value == MO )
-				return true;
-
-		}
-
-		return false;
-
-	}
-
-	static bool mask_form ( uint8_t opcode, uint8_t pp, state& s, form& f ) {
-
-		int32_t size = pp == 1 ? ( s.rex_w ? 2 : 0 ) : ( pp == 0 ? ( s.rex_w ? 3 : 1 ) : -1 );
-		mnemonic name = mnemonic::invalid;
-		uint8_t a = NO;
-		uint8_t b = NO;
-		uint8_t c = NO;
-
-		switch ( opcode ) {
-
-			case 0x90:
-				name = mnemonic::kmovb;
-				a = KR;
-				b = KRM;
-				break;
-
-			case 0x91:
-				name = mnemonic::kmovb;
-				a = KRM;
-				b = KR;
-				break;
-
-			case 0x92:
-			case 0x93:
-				name = mnemonic::kmovb;
-				size = pp == 3 ? ( s.rex_w ? 3 : 2 ) : ( pp == 1 ? 0 : ( pp == 0 ? 1 : -1 ) );
-				a = opcode == 0x92 ? KR : KGR;
-				b = opcode == 0x92 ? KGB : KB;
-				break;
-
-			case 0x98:
-				name = mnemonic::kortestb;
-				a = KR;
-				b = KB;
-				break;
-
-			case 0x99:
-				name = mnemonic::ktestb;
-				a = KR;
-				b = KB;
-				break;
-
-			case 0x41:
-				name = mnemonic::kandb;
-				break;
-
-			case 0x42:
-				name = mnemonic::kandnb;
-				break;
-
-			case 0x44:
-				name = mnemonic::knotb;
-				a = KR;
-				b = KB;
-				break;
-
-			case 0x45:
-				name = mnemonic::korb;
-				break;
-
-			case 0x46:
-				name = mnemonic::kxnorb;
-				break;
-
-			case 0x47:
-				name = mnemonic::kxorb;
-				break;
-
-			case 0x4A:
-				name = mnemonic::kaddb;
-				break;
-
-			case 0x4B:
-				name = pp == 1 && !s.rex_w ? mnemonic::kunpckbw : ( pp == 0 ? ( s.rex_w ? mnemonic::kunpckdq : mnemonic::kunpckwd ) : mnemonic::invalid );
-				size = name == mnemonic::invalid ? -1 : 0;
-				break;
-
-			default:
-				return false;
-
-		}
-
-		if ( size < 0 || name == mnemonic::invalid )
-			return false;
-
-		if ( a == NO ) {
-
-			a = KR;
-			b = KV;
-			c = KB;
-
-		}
-
-		const uint8_t bytes [ 4 ] = { 1, 2, 4, 8 };
-
-		f = make ( opcode == 0x4B ? name : offset ( name, size ), a, b, c, NO, MODRM );
-		s.ksize = opcode == 0x4B ? static_cast < uint8_t > ( 2 ) : bytes [ size ];
-
-		return true;
-
-	}
-
-	static bool evex_form ( int32_t map, uint8_t opcode, uint8_t pp, state& s, form& f ) {
-
-		bool w = s.rex_w;
-
-		if ( map == 1 && ( opcode == 0x6F || opcode == 0x7F ) ) {
-
-			mnemonic name = pp == 1 ? ( w ? mnemonic::vmovdqa64 : mnemonic::vmovdqa32 ) : ( pp == 2 ? ( w ? mnemonic::vmovdqu64 : mnemonic::vmovdqu32 ) : ( pp == 3 ? ( w ? mnemonic::vmovdqu16 : mnemonic::vmovdqu8 ) : mnemonic::invalid ) );
-
-			if ( name == mnemonic::invalid )
-				return false;
-
-			f = make ( name, opcode == 0x6F ? VX : WX, opcode == 0x6F ? WX : VX, NO, NO, MODRM );
-
-			return true;
-
-		}
-
-		if ( map == 1 && pp == 1 && ( opcode == 0xDB || opcode == 0xDF || opcode == 0xEB || opcode == 0xEF ) ) {
-
-			mnemonic name = opcode == 0xDB ? mnemonic::vpandd : ( opcode == 0xDF ? mnemonic::vpandnd : ( opcode == 0xEB ? mnemonic::vpord : mnemonic::vpxord ) );
-
-			f = make ( offset ( name, w ? 1 : 0 ), VX, HX, WX, NO, MODRM );
-
-			return true;
-
-		}
-
-		if ( map == 2 && pp == 1 && opcode >= 0x7A && opcode <= 0x7C ) {
-
-			mnemonic name = opcode == 0x7A ? mnemonic::vpbroadcastb : ( opcode == 0x7B ? mnemonic::vpbroadcastw : ( w ? mnemonic::vpbroadcastq : mnemonic::vpbroadcastd ) );
-
-			f = make ( name, VX, opcode == 0x7C ? EY : ED, NO, NO, MODRM );
-
-			return true;
-
-		}
-
-		if ( map == 2 && ( opcode == 0x26 || opcode == 0x27 ) && ( pp == 1 || pp == 2 ) ) {
-
-			mnemonic name = pp == 1 ? mnemonic::vptestmb : mnemonic::vptestnmb;
-
-			f = make ( offset ( name, ( opcode == 0x27 ? 2 : 0 ) + ( w ? 1 : 0 ) ), KR, HX, WX, NO, MODRM );
-
-			return true;
-
-		}
-
-		if ( map == 3 && pp == 1 && opcode == 0x25 ) {
-
-			f = make ( w ? mnemonic::vpternlogq : mnemonic::vpternlogd, VX, HX, WX, IB, MODRM );
-
-			return true;
-
-		}
-
-		if ( map == 3 && pp == 1 && ( opcode == 0x3E || opcode == 0x3F || opcode == 0x1E || opcode == 0x1F ) ) {
-
-			mnemonic name = opcode == 0x3E || opcode == 0x1E ? mnemonic::vpcmpub : mnemonic::vpcmpb;
-
-			f = make ( offset ( name, ( opcode >= 0x3E ? 0 : 2 ) + ( w ? 1 : 0 ) ), KR, HX, WX, IB, MODRM );
-
-			return true;
-
-		}
-
-		bool compare = ( map == 1 && pp == 1 && ( opcode == 0x74 || opcode == 0x75 || opcode == 0x76 || opcode == 0x64 || opcode == 0x65 || opcode == 0x66 ) ) || ( map == 2 && pp == 1 && ( opcode == 0x29 || opcode == 0x37 ) );
-
-		if ( compare ) {
-
-			uint16_t index = extended [ map - 1 ] [ opcode ] [ 1 ];
-
-			if ( !index )
-				return false;
-
-			f = make ( pool [ index ].name, KR, HX, WX, NO, MODRM );
-
-			return true;
-
-		}
-
-		if ( map == 1 && opcode == 0xC2 ) {
-
-			uint16_t index = extended [ 0 ] [ opcode ] [ pp ];
-
-			if ( !index )
-				return false;
-
-			bool scalar = pp >= 2;
-
-			f = make ( pool [ index ].name, KR, scalar ? HO : HX, scalar ? ( pp == 2 ? WD : WQ ) : WX, IB, MODRM );
-
-			return true;
-
-		}
-
-		return false;
-
-	}
-
-	static form evex_fallback ( int32_t map, uint8_t opcode ) {
-
-		bool immediate = map == 3 || ( map == 1 && ( ( opcode >= 0x70 && opcode <= 0x73 ) || opcode == 0xC2 || ( opcode >= 0xC4 && opcode <= 0xC6 ) ) );
-
-		return make ( mnemonic::avx512, VX, HX, WX, immediate ? IB : NO, MODRM );
-
-	}
-
 	static bool writes_only ( mnemonic name ) {
 
 		switch ( name ) {
@@ -2471,6 +2673,343 @@ namespace x86 {
 				return static_cast < int32_t > ( name ) >= static_cast < int32_t > ( mnemonic::seto ) && static_cast < int32_t > ( name ) <= static_cast < int32_t > ( mnemonic::setg );
 
 		}
+
+	}
+
+	static int32_t evex_bytes ( uint8_t size, int32_t width ) {
+
+		switch ( size & 15 ) {
+
+			case 0:
+				return width;
+
+			case 1:
+				return width / 2;
+
+			case 2:
+				return width / 4;
+
+			case 3:
+				return width / 8;
+
+			case 4:
+				return 1;
+
+			case 5:
+				return 2;
+
+			case 6:
+			case 11:
+				return 4;
+
+			case 7:
+			case 12:
+				return 8;
+
+			case 8:
+				return 16;
+
+			case 9:
+				return 32;
+
+			case 10:
+				return 64;
+
+			case 14:
+				return width == 16 ? 8 : width;
+
+			default:
+				return 0;
+
+		}
+
+	}
+
+	static int32_t evex_lanes ( uint8_t size, int32_t width ) {
+
+		switch ( size & 15 ) {
+
+			case 1:
+				return base::max ( width / 2, 16 );
+
+			case 2:
+				return base::max ( width / 4, 16 );
+
+			default:
+				return width;
+
+		}
+
+	}
+
+	static bool decode_vector ( cursor& in, state& s, instruction& out, int32_t map, uint8_t opcode, uint8_t pp, bool addrsize, uint16_t prefixes ) {
+
+		uint8_t modrm = in.byte ( );
+
+		if ( in.failed )
+			return false;
+
+		s.has_modrm = true;
+		s.mod = modrm >> 6;
+		s.reg = ( modrm >> 3 ) & 7;
+		s.rm = modrm & 7;
+		s.address_size = static_cast < uint8_t > ( s.long_mode ? ( addrsize ? 4 : 8 ) : ( addrsize ? 2 : 4 ) );
+
+		bool round = s.evex && s.broadcast && s.mod == 3;
+		int32_t length_code = s.width == 16 ? 0 : ( s.width == 32 ? 1 : ( s.width == 64 ? 2 : 3 ) );
+		uint8_t mode = s.mod == 3 ? 2 : 1;
+		const simd_form* table = s.evex ? evex_forms : vex_forms;
+		const simd_form* form = nullptr;
+		int32_t first = s.evex ? evex_first [ map ] [ opcode ] : vex_first [ map & 3 ] [ opcode ];
+		int32_t total = s.evex ? evex_count [ map ] [ opcode ] : vex_count [ map & 3 ] [ opcode ];
+
+		bool w_bit = s.rex_w;
+
+		if ( !s.long_mode && w_bit && !s.evex ) {
+
+			for ( int32_t i = first; i < first + total; i++ ) {
+
+				const simd_form& e = table [ i ];
+
+				if ( e.pp != pp || e.w != 1 || ( e.reg >= 0 && e.reg != s.reg ) )
+					continue;
+
+				for ( const simd_operand& op : e.ops ) {
+
+					if ( op.kind == 2 && op.size == 12 )
+						w_bit = false;
+
+				}
+
+			}
+
+		}
+
+		for ( int32_t i = first; i < first + total && !form; i++ ) {
+
+			const simd_form& e = table [ i ];
+
+			if ( e.pp != pp || e.mode != mode )
+				continue;
+
+			if ( e.w != 2 && e.w != ( w_bit ? 1 : 0 ) )
+				continue;
+
+			if ( e.reg >= 0 && e.reg != s.reg )
+				continue;
+
+			if ( ( e.flags & 32 ) && ( s.rm != 0 || s.rex_b ) )
+				continue;
+
+			if ( round ? !( e.flags & 12 ) : !( e.lengths & ( 1 << length_code ) ) )
+				continue;
+
+			form = &e;
+
+		}
+
+		if ( !form )
+			return false;
+
+		if ( ( out.mask && !( form->flags & 1 ) ) || ( !out.mask && ( form->flags & 16 ) ) || ( out.zeroing && !( form->flags & 2 ) ) )
+			return false;
+
+		bool uses_vvvv = false;
+		bool vsib = false;
+
+		for ( const simd_operand& op : form->ops ) {
+
+			if ( op.source == 2 )
+				uses_vvvv = true;
+
+			if ( op.kind == 5 )
+				vsib = true;
+
+		}
+
+		bool index_high = ( s.vvvv & 16 ) != 0;
+
+		if ( !uses_vvvv && ( ( s.vvvv & 15 ) || ( !vsib && index_high ) ) )
+			return false;
+
+		if ( s.broadcast && s.mod != 3 && !form->element )
+			return false;
+
+		if ( vsib && s.mod != 3 && s.rm != 4 )
+			return false;
+
+		int32_t width = round ? 64 : s.width;
+
+		if ( s.mod != 3 && !read_memory ( in, s, out ) )
+			return false;
+
+		int32_t reg_number = s.reg | ( s.rex_r ? 8 : 0 ) | ( s.rex_r2 ? 16 : 0 );
+		int32_t rm_number = s.rm | ( s.rex_b ? 8 : 0 ) | ( s.evex && s.rex_x && s.mod == 3 ? 16 : 0 );
+		int32_t count = 0;
+		int32_t suffix = -1;
+
+		auto suffix_byte = [ & ] ( ) {
+
+			if ( suffix < 0 ) {
+
+				if ( !out.immediate_size ) {
+
+					out.immediate_offset = static_cast < uint8_t > ( in.at );
+					out.immediate_size = 1;
+
+				}
+
+				suffix = in.byte ( );
+
+			}
+
+			return suffix;
+
+		};
+
+		bool has_is4 = false;
+
+		for ( const simd_operand& op : form->ops )
+			has_is4 = has_is4 || op.source == 6;
+
+		for ( int32_t i = 0; i < 5 && form->ops [ i ].source; i++ ) {
+
+			const simd_operand& op = form->ops [ i ];
+			operand item;
+			int32_t lanes = evex_lanes ( op.size, width );
+			uint8_t gpr_size = static_cast < uint8_t > ( op.size == 12 && s.long_mode ? 8 : ( op.size == 15 ? 2 : 4 ) );
+
+			auto make_reg = [ & ] ( uint8_t value ) {
+
+				item.type = kind::REG;
+				item.reg = value;
+				item.size = register_size ( value );
+
+			};
+
+			switch ( op.source ) {
+
+				case 1:
+
+					if ( op.kind != 0 && op.kind != 2 && ( s.rex_r || s.rex_r2 ) )
+						return false;
+
+					if ( op.kind == 0 )
+						make_reg ( vector ( reg_number, lanes ) );
+					else if ( op.kind == 1 )
+						make_reg ( static_cast < uint8_t > ( K0 + ( s.reg & 7 ) ) );
+					else if ( op.kind == 4 )
+						make_reg ( static_cast < uint8_t > ( K0 + ( s.reg & 6 ) ) );
+					else if ( op.kind == 6 )
+						make_reg ( static_cast < uint8_t > ( TMM0 + ( s.reg & 7 ) ) );
+					else
+						make_reg ( gpr ( s.reg | ( s.rex_r ? 8 : 0 ), gpr_size, true ) );
+
+					break;
+
+				case 2:
+
+					if ( op.kind != 0 && s.vvvv > 15 )
+						return false;
+
+					if ( op.kind == 0 )
+						make_reg ( vector ( s.vvvv, lanes ) );
+					else if ( op.kind == 1 )
+						make_reg ( static_cast < uint8_t > ( K0 + ( s.vvvv & 7 ) ) );
+					else if ( op.kind == 6 )
+						make_reg ( static_cast < uint8_t > ( TMM0 + ( s.vvvv & 7 ) ) );
+					else
+						make_reg ( gpr ( s.vvvv & 15, gpr_size, true ) );
+
+					break;
+
+				case 3:
+
+					if ( s.mod == 3 ) {
+
+						if ( op.kind == 1 && ( s.rex_b || s.rex_x ) )
+							return false;
+
+						if ( op.kind == 0 )
+							make_reg ( vector ( rm_number, lanes ) );
+						else if ( op.kind == 1 )
+							make_reg ( static_cast < uint8_t > ( K0 + ( s.rm & 7 ) ) );
+						else if ( op.kind == 2 )
+							make_reg ( gpr ( s.rm | ( s.rex_b ? 8 : 0 ), gpr_size, true ) );
+						else if ( op.kind == 6 )
+							make_reg ( static_cast < uint8_t > ( TMM0 + ( s.rm & 7 ) ) );
+						else
+							return false;
+
+					} else {
+
+						if ( op.kind != 3 && op.kind != 5 )
+							return false;
+
+						int32_t bytes = evex_bytes ( op.size, width );
+
+						item = s.memory;
+						item.size = static_cast < uint8_t > ( s.broadcast ? form->element : bytes );
+
+						if ( s.broadcast )
+							out.broadcast = static_cast < uint8_t > ( bytes / form->element );
+
+						if ( s.evex && out.displacement_size == 1 )
+							item.value *= s.broadcast ? form->element : ( form->scale ? form->scale : ( bytes ? bytes : 1 ) );
+
+						if ( op.kind == 5 ) {
+
+							int32_t index = ( ( s.sib >> 3 ) & 7 ) | ( s.rex_x ? 8 : 0 ) | ( s.evex && index_high ? 16 : 0 );
+
+							item.index = vector ( index, evex_lanes ( static_cast < uint8_t > ( op.size >> 4 ), width ) );
+							item.scale = static_cast < uint8_t > ( 1 << ( s.sib >> 6 ) );
+
+						}
+
+					}
+
+					break;
+
+				case 4:
+					item.type = kind::IMM;
+					item.size = 1;
+					item.value = static_cast < int64_t > ( has_is4 ? suffix_byte ( ) & 15 : suffix_byte ( ) );
+					break;
+
+				case 6:
+					make_reg ( vector ( ( suffix_byte ( ) >> 4 ) & ( s.long_mode ? 15 : 7 ), lanes ) );
+					break;
+
+				default:
+					break;
+
+			}
+
+			item.access = READ;
+			out.operands [ count++ ] = item;
+
+			if ( count >= 5 )
+				break;
+
+		}
+
+		if ( in.failed )
+			return false;
+
+		out.length = static_cast < uint8_t > ( in.at );
+		out.count = static_cast < uint8_t > ( count );
+		out.name = form->name;
+		out.rounding = static_cast < uint8_t > ( round ? ( ( form->flags & 8 ) ? 1 : 2 + length_code ) : 0 );
+
+		if ( count )
+			out.operands [ 0 ].access = static_cast < uint8_t > ( writes_only ( form->name ) ? WRITE : READ | WRITE );
+
+		if ( s.rex_w )
+			prefixes |= REX_W;
+
+		out.prefixes = prefixes;
+
+		return true;
 
 	}
 
@@ -2616,7 +3155,7 @@ namespace x86 {
 				uint8_t two_vex = in.byte ( );
 				uint8_t three_vex = in.byte ( );
 
-				if ( ( one_vex & 0x0C ) || !( two_vex & 0x04 ) )
+				if ( ( one_vex & 0x08 ) || !( two_vex & 0x04 ) )
 					return false;
 
 				s.evex = true;
@@ -2624,7 +3163,7 @@ namespace x86 {
 				s.rex_x = long_mode && !( one_vex & 0x40 );
 				s.rex_b = long_mode && !( one_vex & 0x20 );
 				s.rex_r2 = long_mode && !( one_vex & 0x10 );
-				map = one_vex & 3;
+				map = one_vex & 7;
 				s.rex_w = ( two_vex & 0x80 ) != 0;
 				s.vvvv = static_cast < uint8_t > ( ( ( ~two_vex >> 3 ) & 15 ) | ( long_mode && !( three_vex & 0x08 ) ? 16 : 0 ) );
 				pp = two_vex & 3;
@@ -2634,7 +3173,7 @@ namespace x86 {
 				s.width = static_cast < uint8_t > ( 16 << ( ( three_vex >> 5 ) & 3 ) );
 				prefixes |= EVEX;
 
-				if ( map == 0 )
+				if ( map == 0 || map == 4 || map == 7 )
 					return false;
 
 			} else if ( first == 0xC5 ) {
@@ -2677,15 +3216,14 @@ namespace x86 {
 		if ( in.failed )
 			return false;
 
+		if ( s.evex || ( s.vex && !( map == 1 && opcode == 0x77 ) ) )
+			return decode_vector ( in, s, out, map, opcode, pp, addrsize, prefixes );
+
 		form f;
 		uint8_t mandatory = 0;
 		bool handled = false;
 
-		if ( s.vex && !s.evex && map == 1 )
-			handled = mask_form ( opcode, pp, s, f );
-
-		if ( !handled && s.evex )
-			handled = evex_form ( map, opcode, pp, s, f );
+		s.opcode = opcode;
 
 		if ( handled ) {
 
@@ -2734,19 +3272,10 @@ namespace x86 {
 				if ( !s.vex && ( f.flags & VEX_ONLY ) )
 					usable = false;
 
-				if ( s.vex && !( f.flags & VEX_ONLY ) && !vector_form ( f ) && !( map == 1 && opcode == 0x77 ) && f.group != G15 )
-					usable = false;
-
 			}
 
-			if ( !usable ) {
-
-				if ( !s.evex )
-					return false;
-
-				f = evex_fallback ( map, opcode );
-
-			}
+			if ( !usable )
+				return false;
 
 			if ( s.vex && !s.evex && map == 1 && opcode == 0x77 ) {
 
@@ -2829,14 +3358,6 @@ namespace x86 {
 			if ( f.flags & REG_ONLY )
 				s.mod = 3;
 
-			if ( s.evex && s.broadcast && s.mod == 3 ) {
-
-				out.rounding = true;
-				s.broadcast = false;
-				s.width = 64;
-
-			}
-
 			if ( s.width > 64 )
 				return false;
 
@@ -2850,6 +3371,9 @@ namespace x86 {
 			}
 
 		}
+
+		if ( ( f.flags & MODRM ) && !refine ( f, s, map, opcode, mandatory ) )
+			return false;
 
 		if ( !( f.flags & MODRM ) )
 			s.rm = static_cast < uint8_t > ( opcode & 7 );
@@ -2915,6 +3439,9 @@ namespace x86 {
 		if ( s.ksize )
 			s.operand_size = s.ksize;
 
+		if ( s.prefix_used )
+			consumed_rep = true;
+
 		if ( f.name == mnemonic::invalid )
 			return false;
 
@@ -2938,6 +3465,61 @@ namespace x86 {
 				f.name = offset ( name, size == 2 ? 0 : 1 );
 			else
 				f.name = offset ( name, size == 2 ? 0 : ( size == 4 ? 1 : 2 ) );
+
+		}
+
+		if ( s.rex_w && long_mode && !s.vex ) {
+
+			switch ( f.name ) {
+
+				case mnemonic::fxsave:
+					f.name = mnemonic::fxsave64;
+					break;
+
+				case mnemonic::fxrstor:
+					f.name = mnemonic::fxrstor64;
+					break;
+
+				case mnemonic::xsave:
+					f.name = mnemonic::xsave64;
+					break;
+
+				case mnemonic::xrstor:
+					f.name = mnemonic::xrstor64;
+					break;
+
+				case mnemonic::xsaveopt:
+					f.name = mnemonic::xsaveopt64;
+					break;
+
+				case mnemonic::xsavec:
+					f.name = mnemonic::xsavec64;
+					break;
+
+				case mnemonic::xsaves:
+					f.name = mnemonic::xsaves64;
+					break;
+
+				case mnemonic::xrstors:
+					f.name = mnemonic::xrstors64;
+					break;
+
+				case mnemonic::retf:
+					f.name = mnemonic::retfq;
+					break;
+
+				case mnemonic::sysret:
+					f.name = mnemonic::sysretq;
+					break;
+
+				case mnemonic::sysexit:
+					f.name = mnemonic::sysexitq;
+					break;
+
+				default:
+					break;
+
+			}
 
 		}
 
@@ -2989,6 +3571,31 @@ namespace x86 {
 		if ( in.failed )
 			return false;
 
+		if ( map == 1 && opcode == 0x0F && !s.vex ) {
+
+			if ( !out.immediate_size ) {
+
+				out.immediate_offset = static_cast < uint8_t > ( in.at );
+				out.immediate_size = 1;
+
+			}
+
+			f.name = amd_3dnow ( in.byte ( ) );
+
+			if ( f.name == mnemonic::invalid )
+				return false;
+
+		}
+
+		if ( map == 0 && ( opcode == 0x86 || opcode == 0x87 ) && s.mod == 3 && count == 2 ) {
+
+			operand held = out.operands [ 0 ];
+
+			out.operands [ 0 ] = out.operands [ 1 ];
+			out.operands [ 1 ] = held;
+
+		}
+
 		if ( map == 0 && opcode == 0x8C && count && out.operands [ 0 ].type == kind::MEM )
 			out.operands [ 0 ].size = 2;
 
@@ -3027,7 +3634,7 @@ namespace x86 {
 		if ( rex )
 			prefixes |= HAS_REX;
 
-		if ( opsize && !consumed_66 )
+		if ( opsize && !consumed_66 && !s.prefix_used )
 			prefixes |= OPSIZE;
 
 		if ( addrsize )
@@ -3082,6 +3689,9 @@ namespace x86 {
 			case mnemonic::iretq:
 			case mnemonic::sysret:
 			case mnemonic::sysexit:
+			case mnemonic::retfq:
+			case mnemonic::sysretq:
+			case mnemonic::sysexitq:
 				out.control = flow::RETURN;
 				break;
 

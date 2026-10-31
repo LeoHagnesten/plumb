@@ -2,19 +2,17 @@
 
 namespace ui {
 
-	static const wchar_t* dock_titles [ 3 ] = { L"Browser", L"Inspector", L"Output" };
+	static const wchar_t* dock_titles [ 2 ] = { L"Browser", L"Output" };
 	static const wchar_t* side_titles [ 3 ] = { L"Dock on the left", L"Dock on the right", L"Dock at the bottom" };
 
 	void app::reset_layout ( ) {
 
 		docks [ 0 ] = dock_side::LEFT;
-		docks [ 1 ] = dock_side::RIGHT;
-		docks [ 2 ] = dock_side::BOTTOM;
+		docks [ 1 ] = dock_side::BOTTOM;
 		dock_size [ 0 ] = 288.0f;
 		dock_size [ 1 ] = 300.0f;
 		dock_size [ 2 ] = 190.0f;
 		browser_open = true;
-		inspector_open = true;
 		output_open = true;
 		pane_split = 0.5f;
 		pending = base::max ( pending, 3 );
@@ -24,16 +22,16 @@ namespace ui {
 
 	void app::dock_handles ( ) {
 
-		math::rect* areas [ 3 ] = { &browser_area, &inspector_area, &output_area };
+		math::rect* areas [ 2 ] = { &browser_area, &output_area };
 
-		for ( int32_t p = 0; p < 3; p++ ) {
+		for ( int32_t p = 0; p < 2; p++ ) {
 
 			const math::rect& area = *areas [ p ];
 
 			if ( area.w < 60.0f || area.h < 40.0f )
 				continue;
 
-			math::rect header ( area.x, area.y, area.w, p == 2 ? 31.0f : 34.0f );
+			math::rect header ( area.x, area.y, area.w, p == 1 ? 31.0f : 34.0f );
 			uint64_t id = make_id ( "dock_handle", p );
 			widget& item = state ( id );
 
@@ -81,7 +79,7 @@ namespace ui {
 	void app::draw_docks ( ) {
 
 		render::canvas& c = canvas;
-		math::rect* areas [ 3 ] = { &browser_area, &inspector_area, &output_area };
+		math::rect* areas [ 2 ] = { &browser_area, &output_area };
 
 		if ( dock_areas [ 0 ].w > 1.0f )
 			c.fill ( math::rect ( dock_areas [ 0 ].right ( ) - 1.0f, dock_areas [ 0 ].y, 1.0f, dock_areas [ 0 ].h ), 0.0f, ink ( tone::LINE ) );
@@ -92,7 +90,7 @@ namespace ui {
 		if ( dock_areas [ 2 ].h > 1.0f )
 			c.fill ( math::rect ( dock_areas [ 2 ].x, dock_areas [ 2 ].y, dock_areas [ 2 ].w, 1.0f ), 0.0f, ink ( tone::LINE ) );
 
-		for ( int32_t p = 0; p < 3; p++ ) {
+		for ( int32_t p = 0; p < 2; p++ ) {
 
 			const math::rect& area = *areas [ p ];
 			const math::rect& side = dock_areas [ static_cast < int32_t > ( docks [ p ] ) ];

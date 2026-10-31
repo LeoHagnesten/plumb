@@ -4,13 +4,16 @@
 
 A disassembler, decompiler and debugger for Windows executables. Plumb is written in C++ with no C runtime and no third-party code, and the whole program is a single executable.
 
-![The listing with the function browser, inspector and output](docs/media/listing.png)
+![The listing with the inspector tab on the left and the output pane below](docs/media/listing.png)
 
 ## What it does
 
 ### Disassembly
 
-- Table-driven x86 and x86-64 decoder covering the legacy, VEX and EVEX (AVX-512) encodings. It matches llvm-objdump on more than 99% of instructions in the system DLLs it was tested against.
+- Table-driven x86 and x86-64 decoder for the legacy, VEX and EVEX encodings. That covers all of AVX-512 (including FP16, BF16, VNNI, VBMI and IFMA), AMX, AVX-VNNI and AVX-IFMA, SHA and SHA512, SM3 and SM4, GFNI, VAES, Key Locker, CET, TSX, SGX, VMX, SVM, SEV-SNP, TDX and FRED, plus AMD's 3DNow!, FMA4 and SSE4a. Opmasks, zeroing, embedded rounding and SAE, broadcasts, compressed displacements and VSIB addressing are all decoded.
+- The VEX and EVEX tables are generated from the encodings themselves instead of being typed in by hand. Every opcode, prefix and operand form in the legacy, VEX and EVEX maps was decoded in 32-bit and 64-bit mode and compared with llvm-objdump, with dumpbin settling disagreements. Of the 689,717 encodings both accept, 688,183 come out the same. In the other 1,534, Plumb follows the Intel manual where llvm doesn't, for example 66-prefixed jumps in 64-bit mode and the broadcast displacement of `vgf2p8affineqb`.
+- Across 12.7 million instructions from 11 Windows system binaries (ntdll, kernelbase, ntoskrnl, onnxruntime, DirectML and others, 32-bit and 64-bit), 99.992% match llvm-objdump exactly, and ntdll matches 100%. Most of the rest are encodings llvm rejects but the processor runs, such as the `F6 /1` form of `test` and the `D0 /6` form of `sal`, found in data that sits inside code sections.
+- Not supported yet: Intel APX (REX2 and the EVEX-promoted general-purpose instructions), AMD XOP and the Xeon Phi only AVX-512PF prefetches.
 - Text listing with full-width addresses, labels, function boundaries and `end of` markers, alignment padding, string and import rows, switch tables and vtables.
 - The listing behaves like a text editor. Click to place a caret, then drag or Shift-click to select any span (a register, an operand or whole lines) and Ctrl+C copies exactly that. Double-click a name to follow it, or anything else to select the word.
 - Opcode bytes are hidden by default. Turn them on under Window.
@@ -52,14 +55,15 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 
 - F9 starts the program and stops at its entry point. F7 steps into, F8 steps over, F12 pauses and Ctrl+F2 stops.
 - F2 toggles a breakpoint, which shows as a dot in the listing. Breakpoints are kept with the project and moved to the runtime base when ASLR relocates the image.
-- Registers appear in the inspector while paused, the current instruction is marked in the listing, and `OutputDebugString` messages go to the output pane.
+- Registers appear in the inspector tab while paused, the current instruction is marked in the listing, and `OutputDebugString` messages go to the output pane.
 - Works on 64-bit and 32-bit (WOW64) executables.
 
 ### Workspace
 
 - Up to 16 tabs across two split panes. Each tab is a listing, graph, C, hex, headers or call graph view.
-- Browser, inspector and output windows dock to the left, right or bottom: drag a window's header to move it. Window > Reset window layout puts everything back.
-- Ctrl+S saves the project to a `.plumb` file beside the binary. It holds names, comments, bookmarks, number formats, variable names, types, prototypes, structs, breakpoints and patches, and opening that file opens the binary with everything restored. Autosave is a setting in the File menu, and closing with unsaved changes asks first.
+- The browser on the left holds functions, imports, exports, strings, sections, classes, structures, references, search results and the inspector as tabs along its edge. The inspector (Ctrl+I) shows the address, RVA, file offset and section under the caret, the bytes there read as every integer and float type, the image details and, while debugging, the registers.
+- The browser and output windows dock to the left, right or bottom: drag a window's header to move it. Window > Reset window layout puts everything back.
+- Ctrl+S saves the project next to the binary under the same name, so `C:\tools\app.exe` gets `C:\tools\app.plumb`. It holds names, comments, bookmarks, number formats, variable names, types, prototypes, structs, breakpoints and patches, and opening that file opens the binary with everything restored. Projects saved by older versions as `app.exe.plumb` still load and move to the new name on the next save. If `app.plumb` already belongs to another binary in the same folder, such as `app.dll` next to `app.exe`, that one is saved as `app.dll.plumb` instead. Autosave is a setting in the File menu, and closing with unsaved changes asks first.
 - Undo and redo (Ctrl+Z, Ctrl+Y) for every edit.
 - Command palette (Ctrl+Shift+P), go to address or name (G), back and forward history, and a command line in the output pane.
 - Dark and light themes.
@@ -67,7 +71,7 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 | | |
 | --- | --- |
 | ![C view](docs/media/pseudocode.png) | ![Graph view](docs/media/graph.png) |
-| ![Classes recovered from RTTI](docs/media/classes.png) | ![Paused at a breakpoint](docs/media/debugger.png) |
+| ![Classes recovered from RTTI, with a vtable in the listing](docs/media/classes.png) | ![Paused at a breakpoint, with registers in the inspector tab](docs/media/debugger.png) |
 | ![Call graph](docs/media/calls.png) | ![An instruction assembled over the original, with the patched bytes in yellow](docs/media/patch.png) |
 
 ![The light theme with C and disassembly side by side](docs/media/light.png)
@@ -88,6 +92,8 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 | Ctrl+Alt+A | Assemble | Ctrl+Alt+B | Patch bytes |
 | Ctrl+Alt+R | Revert patch | Ctrl+Alt+X | Decode XOR |
 | Ctrl+Shift+F | Search everything | Ctrl+4 | Call graph |
+| Ctrl+I | Inspector | Alt+1 to Alt+9 | Browser tabs |
+| Ctrl+B | Show or hide the browser | Ctrl+J | Show or hide the output |
 | Ctrl+S | Save project | Ctrl+Z / Ctrl+Y | Undo / redo |
 | Ctrl+1 / 2 / 3 | New listing, hex or headers tab | Ctrl+\\ | Split |
 

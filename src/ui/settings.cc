@@ -74,6 +74,56 @@ namespace ui {
 
 	}
 
+	void app::project_beside ( base::writer& out ) const {
+
+		const wchar_t* path = file.path.get ( );
+		int32_t length = 0;
+		int32_t dot = -1;
+
+		for ( ; path [ length ]; length++ ) {
+
+			if ( path [ length ] == L'.' )
+				dot = length;
+			else if ( path [ length ] == L'\\' || path [ length ] == L'/' )
+				dot = -1;
+
+		}
+
+		out.clear ( );
+
+		for ( int32_t i = 0; i < ( dot >= 0 ? dot : length ); i++ )
+			out.add ( path [ i ] );
+
+		out.add ( L".plumb" );
+
+	}
+
+	bool app::project_ours ( const wchar_t* path ) const {
+
+		base::list < char > data;
+
+		if ( !files::read ( path, data ) )
+			return true;
+
+		data.push ( 0 );
+
+		if ( data.count ( ) < 6 || data [ 0 ] != 'f' || data [ 1 ] != 'i' || data [ 2 ] != 'l' || data [ 3 ] != 'e' || data [ 4 ] != ' ' )
+			return true;
+
+		int32_t end = 5;
+
+		while ( data [ static_cast < size_t > ( end ) ] && data [ static_cast < size_t > ( end ) ] != '\n' && data [ static_cast < size_t > ( end ) ] != '\r' )
+			end++;
+
+		wchar_t owner [ 600 ];
+		int32_t made = MultiByteToWideChar ( CP_UTF8, 0, data.data ( ) + 5, end - 5, owner, 599 );
+
+		owner [ made > 0 ? made : 0 ] = 0;
+
+		return CompareStringOrdinal ( owner, -1, file.path.get ( ), -1, TRUE ) == CSTR_EQUAL;
+
+	}
+
 	void app::serialize_project ( base::list < char >& out ) const {
 
 		char utf8 [ 1200 ];
@@ -375,18 +425,28 @@ namespace ui {
 
 		project_path ( file, path, 600 );
 
+		bool loaded = false;
+
 		if ( project_file.empty ( ) ) {
 
 			base::writer beside;
+			base::writer legacy;
 
-			beside.add ( file.path.get ( ) ).add ( L".plumb" );
+			project_beside ( beside );
+			legacy.add ( file.path.get ( ) ).add ( L".plumb" );
 
-			if ( GetFileAttributesW ( beside.text ( ) ) != INVALID_FILE_ATTRIBUTES )
+			if ( GetFileAttributesW ( beside.text ( ) ) != INVALID_FILE_ATTRIBUTES && project_ours ( beside.text ( ) ) )
 				project_file.set ( beside.text ( ) );
+			else if ( GetFileAttributesW ( legacy.text ( ) ) != INVALID_FILE_ATTRIBUTES && files::read ( legacy.text ( ), data ) ) {
+
+				loaded = true;
+				project_file.set ( project_ours ( beside.text ( ) ) ? beside.text ( ) : legacy.text ( ) );
+
+			}
 
 		}
 
-		if ( !( !project_file.empty ( ) && files::read ( project_file.get ( ), data ) ) && !files::read ( path, data ) )
+		if ( !loaded && !( !project_file.empty ( ) && files::read ( project_file.get ( ), data ) ) && !files::read ( path, data ) )
 			return;
 
 		data.push ( 0 );
@@ -494,6 +554,9 @@ namespace ui {
 
 	void app::save_settings ( ) {
 
+		if ( settings_frozen )
+			return;
+
 		base::list < char > out;
 		base::writer value;
 		wchar_t path [ 600 ];
@@ -506,10 +569,10 @@ namespace ui {
 		value.number ( static_cast < int64_t > ( dock_size [ 0 ] ) ).add ( L',' ).number ( static_cast < int64_t > ( dock_size [ 1 ] ) ).add ( L',' ).number ( static_cast < int64_t > ( dock_size [ 2 ] ) );
 		put_line ( out, "dock_sizes", value.text ( ) );
 		value.clear ( );
-		value.number ( static_cast < int32_t > ( docks [ 0 ] ) ).add ( L',' ).number ( static_cast < int32_t > ( docks [ 1 ] ) ).add ( L',' ).number ( static_cast < int32_t > ( docks [ 2 ] ) );
+		value.number ( static_cast < int32_t > ( docks [ 0 ] ) ).add ( L',' ).number ( static_cast < int32_t > ( docks [ 1 ] ) );
 		put_line ( out, "docks", value.text ( ) );
 		value.clear ( );
-		value.number ( ( browser_open ? 1 : 0 ) | ( inspector_open ? 2 : 0 ) | ( output_open ? 4 : 0 ) );
+		value.number ( ( browser_open ? 1 : 0 ) | ( output_open ? 4 : 0 ) );
 		put_line ( out, "panels", value.text ( ) );
 
 		if ( placement_valid ) {
@@ -633,15 +696,12 @@ namespace ui {
 
 				const wchar_t* at = value;
 				bool sizes = named ( "dock_sizes" );
+				int64_t numbers [ 3 ] = { };
+				int32_t found = 0;
 
-				for ( int32_t i = 0; i < 3; i++ ) {
+				for ( int32_t i = 0; i < 3 && *at; i++ ) {
 
-					int64_t number = read_integer ( at );
-
-					if ( sizes )
-						dock_size [ i ] = base::clamp ( static_cast < float > ( number ), 90.0f, 900.0f );
-					else
-						docks [ i ] = static_cast < dock_side > ( base::clamp < int64_t > ( number, 0, 2 ) );
+					numbers [ found++ ] = read_integer ( at );
 
 					while ( *at && *at != L',' )
 						at++;
@@ -651,13 +711,24 @@ namespace ui {
 
 				}
 
+				if ( sizes ) {
+
+					for ( int32_t i = 0; i < found; i++ )
+						dock_size [ i ] = base::clamp ( static_cast < float > ( numbers [ i ] ), 90.0f, 900.0f );
+
+				} else if ( found >= 2 ) {
+
+					docks [ 0 ] = static_cast < dock_side > ( base::clamp < int64_t > ( numbers [ 0 ], 0, 2 ) );
+					docks [ 1 ] = static_cast < dock_side > ( base::clamp < int64_t > ( numbers [ found == 3 ? 2 : 1 ], 0, 2 ) );
+
+				}
+
 			}
 			else if ( named ( "panels" ) ) {
 
 				int64_t flags = read_integer ( value );
 
 				browser_open = ( flags & 1 ) != 0;
-				inspector_open = ( flags & 2 ) != 0;
 				output_open = ( flags & 4 ) != 0;
 
 			} else if ( named ( "window" ) ) {
@@ -687,7 +758,6 @@ namespace ui {
 
 		theme_mix = light ? 1.0f : 0.0f;
 		browser_show = browser_open ? 1.0f : 0.0f;
-		inspector_show = inspector_open ? 1.0f : 0.0f;
 		output_show = output_open ? 1.0f : 0.0f;
 		update_theme ( );
 

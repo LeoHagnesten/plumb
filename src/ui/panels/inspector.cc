@@ -54,15 +54,10 @@ namespace ui {
 
 	}
 
-	void app::draw_inspector ( ) {
-
-		if ( inspector_area.w < 2.0f )
-			return;
+	void app::draw_inspector ( math::rect area, float inner ) {
 
 		render::canvas& c = canvas;
-		math::rect area = inspector_area;
-		float inner = inspector_fit;
-		float x = area.x + 16.0f;
+		float x = area.right ( ) - inner + 16.0f;
 		float value_x = x + 104.0f;
 		uint64_t offset = 0;
 		bool mapped = file.offset_of ( now->cursor_address, offset );
@@ -75,9 +70,6 @@ namespace ui {
 			mapped = now->hex_cursor < file.size;
 
 		}
-
-		c.push_clip ( area );
-		c.fill ( area, 0.0f, ink ( tone::PANEL ) );
 
 		uint64_t id = make_id ( "inspector" );
 
@@ -235,7 +227,7 @@ namespace ui {
 
 		float adv = c.measure ( L"0000000000", render::font::MONO ) * 0.1f;
 		float ascii_x = x + adv * 24.0f + 12.0f;
-		bool ascii_fits = ascii_x + adv * 8.0f < area.x + inner - 10.0f;
+		bool ascii_fits = ascii_x + adv * 8.0f < area.right ( ) - 10.0f;
 
 		for ( int32_t line = 0; line < 2; line++ ) {
 
@@ -386,7 +378,6 @@ namespace ui {
 		float content = y + inspector_scroll.shown - area.y + 16.0f;
 
 		glide ( inspector_scroll, content - area.h );
-		c.pop_clip ( );
 		draw_scrollbar ( make_id ( "inspector_bar" ), area, inspector_scroll, content, area.h );
 
 	}

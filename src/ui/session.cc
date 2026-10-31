@@ -909,10 +909,32 @@ namespace ui {
 
 				int32_t k = 0;
 
-				for ( ; k < length - 6 && k < 599; k++ )
+				for ( ; k < length - 6 && k < 590; k++ )
 					binary [ k ] = path [ k ];
 
 				binary [ k ] = 0;
+
+				if ( GetFileAttributesW ( binary ) == INVALID_FILE_ATTRIBUTES ) {
+
+					static const wchar_t* const kinds [ 8 ] = { L".exe", L".dll", L".sys", L".ocx", L".cpl", L".scr", L".efi", L".bin" };
+
+					for ( const wchar_t* kind : kinds ) {
+
+						int32_t at = k;
+
+						for ( const wchar_t* c = kind; *c; c++ )
+							binary [ at++ ] = *c;
+
+						binary [ at ] = 0;
+
+						if ( GetFileAttributesW ( binary ) != INVALID_FILE_ATTRIBUTES )
+							break;
+
+						binary [ k ] = 0;
+
+					}
+
+				}
 
 			}
 

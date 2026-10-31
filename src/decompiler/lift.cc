@@ -111,6 +111,26 @@ namespace decompiler {
 
 	}
 
+	void builder::deepen ( int32_t e ) {
+
+		expr& item = exprs [ static_cast < size_t > ( e ) ];
+		const int32_t children [ 3 ] = { item.a, item.b, item.c };
+		int32_t deepest = 0;
+
+		for ( int32_t child : children ) {
+
+			if ( child >= 0 )
+				deepest = base::max ( deepest, exprs [ static_cast < size_t > ( child ) ].depth );
+
+		}
+
+		for ( int32_t i = 0; i < item.arg_count; i++ )
+			deepest = base::max ( deepest, exprs [ static_cast < size_t > ( args [ static_cast < size_t > ( item.first_arg + i ) ] ) ].depth );
+
+		item.depth = deepest + 1;
+
+	}
+
 	static int64_t truncate ( int64_t value, uint8_t size ) {
 
 		if ( size >= 8 )
@@ -1757,6 +1777,7 @@ namespace decompiler {
 							k.args.push ( a );
 							k.args.push ( c );
 							k.exprs [ static_cast < size_t > ( made ) ].arg_count = 2;
+							k.deepen ( made );
 
 							return code == 10 ? made : k.negate ( made );
 
@@ -2022,6 +2043,7 @@ namespace decompiler {
 
 			b->exprs [ static_cast < size_t > ( made ) ].first_arg = first;
 			b->exprs [ static_cast < size_t > ( made ) ].arg_count = count;
+			b->deepen ( made );
 
 			return made;
 
@@ -2806,6 +2828,7 @@ namespace decompiler {
 			int32_t chosen = k.make ( op::TERNARY, size, condition ( ins.condition ), read ( ins, 1 ) );
 
 				k.exprs [ static_cast < size_t > ( chosen ) ].c = read ( ins, 0 );
+				k.deepen ( chosen );
 				write ( ins, 0, chosen );
 
 				return;

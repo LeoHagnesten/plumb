@@ -127,10 +127,10 @@ static uint32_t key_code ( const wchar_t* name, bool& control, bool& shift, bool
 
 	}
 
-	const wchar_t* names [ ] = { L"left", L"right", L"up", L"down", L"escape", L"enter", L"pagedown", L"pageup", L"home", L"end", L"f1", L"f5", L"tab", L"back", L"f2", L"f7", L"f8", L"f9", L"f12" };
-	const uint32_t codes [ ] = { VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_ESCAPE, VK_RETURN, VK_NEXT, VK_PRIOR, VK_HOME, VK_END, VK_F1, VK_F5, VK_TAB, VK_BACK, VK_F2, VK_F7, VK_F8, VK_F9, VK_F12 };
+	const wchar_t* names [ ] = { L"left", L"right", L"up", L"down", L"escape", L"enter", L"pagedown", L"pageup", L"home", L"end", L"f1", L"f5", L"tab", L"back", L"f2", L"f7", L"f8", L"f9", L"f12", L"space", L"backslash" };
+	const uint32_t codes [ ] = { VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_ESCAPE, VK_RETURN, VK_NEXT, VK_PRIOR, VK_HOME, VK_END, VK_F1, VK_F5, VK_TAB, VK_BACK, VK_F2, VK_F7, VK_F8, VK_F9, VK_F12, VK_SPACE, VK_OEM_5 };
 
-	for ( int32_t i = 0; i < 19; i++ ) {
+	for ( int32_t i = 0; i < 21; i++ ) {
 
 		if ( base::same_text ( name, names [ i ] ) )
 			return codes [ i ];
@@ -232,8 +232,12 @@ static bool capture_mode ( ) {
 			step ( base::max ( static_cast < int32_t > ( reader.number ( ) * 60.0f + 0.5f ), 1 ) );
 		else if ( base::same_text ( command, L"frames" ) )
 			step ( static_cast < int32_t > ( reader.number ( ) ) );
-		else if ( base::same_text ( command, L"persist" ) )
+		else if ( base::same_text ( command, L"persist" ) ) {
+
 			app->persist = true;
+			app->settings_frozen = true;
+
+		}
 		else if ( base::same_text ( command, L"async" ) )
 			app->analysis_sync = false;
 		else if ( base::same_text ( command, L"sleep" ) ) {

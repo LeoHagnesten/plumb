@@ -147,30 +147,11 @@ namespace x86 {
 
 	}
 
-	static bool gp_vex ( mnemonic name ) {
+	static bool legacy_simd ( mnemonic name ) {
 
-		switch ( name ) {
+		int32_t value = static_cast < int32_t > ( name );
 
-			case mnemonic::andn:
-			case mnemonic::bextr:
-			case mnemonic::blsi:
-			case mnemonic::blsmsk:
-			case mnemonic::blsr:
-			case mnemonic::bzhi:
-			case mnemonic::mulx:
-			case mnemonic::pdep:
-			case mnemonic::pext:
-			case mnemonic::rorx:
-			case mnemonic::sarx:
-			case mnemonic::shlx:
-			case mnemonic::shrx:
-			case mnemonic::avx512:
-				return true;
-
-			default:
-				return static_cast < int32_t > ( name ) >= static_cast < int32_t > ( mnemonic::kmovb ) && static_cast < int32_t > ( name ) <= static_cast < int32_t > ( mnemonic::kunpckdq );
-
-		}
+		return value >= static_cast < int32_t > ( mnemonic::addpd ) && value <= static_cast < int32_t > ( mnemonic::xorps );
 
 	}
 
@@ -220,9 +201,9 @@ namespace x86 {
 
 		wchar_t text [ 48 ];
 		int32_t length = 0;
-		const char* name = mnemonic_name ( item.name );
+		const char* name = item.name == mnemonic::callf ? "call" : ( item.name == mnemonic::jmpf ? "jmp" : mnemonic_name ( item.name ) );
 
-		if ( ( item.prefixes & VEX ) && name [ 0 ] != 'v' && !gp_vex ( item.name ) )
+		if ( ( item.prefixes & VEX ) && legacy_simd ( item.name ) )
 			text [ length++ ] = L'v';
 
 		if ( predicate >= 0 ) {
@@ -388,6 +369,16 @@ namespace x86 {
 
 		}
 
+		bool memory_write = item.count && item.operands [ 0 ].type == kind::MEM;
+		bool elision = ( item.prefixes & LOCK ) || ( item.name == mnemonic::xchg && ( memory_write || ( item.count > 1 && item.operands [ 1 ].type == kind::MEM ) ) ) || ( item.name == mnemonic::mov && memory_write );
+		bool near_branch = item.name == mnemonic::call || item.name == mnemonic::jmp || item.name == mnemonic::ret || ( item.control == flow::BRANCH && item.condition != 0xFF );
+
+		if ( ( item.prefixes & REPNE ) && !string_op ( item.name ) && elision && ( ( item.prefixes & LOCK ) || item.name == mnemonic::xchg ) )
+			out.put ( L"xacquire ", token::PREFIX );
+
+		if ( ( item.prefixes & REP ) && !string_op ( item.name ) && elision )
+			out.put ( L"xrelease ", token::PREFIX );
+
 		if ( item.prefixes & LOCK )
 			out.put ( L"lock ", token::PREFIX );
 
@@ -395,13 +386,19 @@ namespace x86 {
 
 			if ( string_op ( item.name ) )
 				out.put ( compare_string ( item.name ) ? L"repe " : L"rep ", token::PREFIX );
-			else
+			else if ( item.name == mnemonic::ret )
 				out.put ( L"rep ", token::PREFIX );
 
 		}
 
-		if ( item.prefixes & REPNE )
-			out.put ( string_op ( item.name ) ? L"repne " : L"bnd ", token::PREFIX );
+		if ( item.prefixes & REPNE ) {
+
+			if ( string_op ( item.name ) )
+				out.put ( L"repne ", token::PREFIX );
+			else if ( near_branch )
+				out.put ( L"bnd ", token::PREFIX );
+
+		}
 
 		if ( item.prefixes & NOTRACK )
 			out.put ( L"notrack ", token::PREFIX );
@@ -434,12 +431,29 @@ namespace x86 {
 
 		}
 
+		static const wchar_t* const round_modes [ 5 ] = { L"{sae}", L"{rn-sae}", L"{rd-sae}", L"{ru-sae}", L"{rz-sae}" };
+		int32_t round_before = -1;
+
+		for ( int32_t i = 0; item.rounding && i < shown; i++ ) {
+
+			if ( item.operands [ i ].type == kind::REG && is_vector ( item.operands [ i ].reg ) )
+				round_before = i + 1;
+
+		}
+
 		for ( int32_t i = 0; i < shown; i++ ) {
 
 			const operand& value = item.operands [ i ];
 
 			if ( i )
 				out.put ( L", ", token::PUNCT );
+
+			if ( i == round_before ) {
+
+				out.put ( round_modes [ item.rounding - 1 ], token::PUNCT );
+				out.put ( L", ", token::PUNCT );
+
+			}
 
 			switch ( value.type ) {
 
@@ -533,6 +547,7 @@ namespace x86 {
 
 				case kind::FAR: {
 
+					out.put ( L"far ", token::SIZE );
 					put_number ( out, static_cast < uint64_t > ( value.value ) >> 32, flags );
 					out.put ( L":", token::PUNCT );
 					put_number ( out, static_cast < uint64_t > ( value.value ) & 0xFFFFFFFFull, flags, token::ADDRESS );
@@ -559,8 +574,12 @@ namespace x86 {
 
 		}
 
-		if ( item.rounding )
-			out.put ( L", {sae}", token::PUNCT );
+		if ( item.rounding && round_before == shown ) {
+
+			out.put ( L", ", token::PUNCT );
+			out.put ( round_modes [ item.rounding - 1 ], token::PUNCT );
+
+		}
 
 	}
 
