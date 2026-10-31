@@ -57,6 +57,7 @@ namespace ui {
 		STRINGS,
 		SECTIONS,
 		CLASSES,
+		STRUCTS,
 		REFERENCES,
 		SEARCH,
 		COUNT,
@@ -117,6 +118,9 @@ namespace ui {
 	enum class command : int32_t {
 
 		OPEN,
+		SAVE_PROJECT,
+		UNDO,
+		REDO,
 		CLOSE,
 		EXIT,
 		COPY,
@@ -143,6 +147,7 @@ namespace ui {
 		SHOW_STRINGS,
 		SHOW_SECTIONS,
 		SHOW_CLASSES,
+		SHOW_STRUCTS,
 		SHOW_REFERENCES,
 		SHOW_SEARCH,
 		TOGGLE_BROWSER,
@@ -154,6 +159,7 @@ namespace ui {
 		RENAME,
 		COMMENT,
 		SET_TYPE,
+		STRUCT_FROM_VAR,
 		BOOKMARK,
 		NUMBER_RADIX,
 		NUMBER_CHAR,
@@ -164,6 +170,7 @@ namespace ui {
 		FIND_SIGNATURE,
 		COPY_FUNCTION,
 		TOGGLE_BYTES,
+		TOGGLE_AUTOSAVE,
 		TOGGLE_SPACING,
 		DEBUG_RUN,
 		DEBUG_STEP_INTO,
@@ -250,6 +257,11 @@ namespace ui {
 		float velocity = 0.0f;
 		float limit = 0.0f;
 		float shown = 0.0f;
+		float from = 0.0f;
+		float from_velocity = 0.0f;
+		float goal = 0.0f;
+		float elapsed = 1.0f;
+		float duration = 0.0f;
 
 	};
 
@@ -374,6 +386,22 @@ namespace ui {
 		base::text key;
 		base::text name;
 		base::text type;
+
+	};
+
+	struct user_field {
+
+		int32_t offset = 0;
+		int32_t size = 0;
+		base::text name;
+		base::text type;
+
+	};
+
+	struct user_struct {
+
+		base::text name;
+		base::list < user_field > fields;
 
 	};
 
@@ -537,6 +565,8 @@ namespace ui {
 
 		void set_theme ( bool light );
 
+		bool can_close ( );
+
 		void load_settings ( );
 
 		void save_settings ( );
@@ -568,6 +598,36 @@ namespace ui {
 		void sync_breakpoints ( );
 
 		void poll_debugger ( );
+
+		void sync_panes ( uint64_t address );
+
+		void serialize_project ( base::list < char >& out ) const;
+
+		void apply_project ( const char* data );
+
+		void remember_undo ( );
+
+		void undo ( bool forward );
+
+		void changed ( );
+
+		bool confirm_discard ( );
+
+		int32_t struct_named ( const wchar_t* name ) const;
+
+		int32_t struct_size ( int32_t index ) const;
+
+		bool add_field ( int32_t index, int32_t offset, const wchar_t* name, const wchar_t* type );
+
+		const wchar_t* comment_at ( uint64_t address ) const;
+
+		bool code_field ( int32_t& index, int32_t& offset ) const;
+
+		bool known_type ( const decompiler::c_type& shape, base::writer& problem ) const;
+
+		void open_struct_prompt ( int32_t mode, int32_t index, int32_t offset, const wchar_t* fill );
+
+		bool apply_struct_prompt ( const wchar_t* text );
 
 		void function_name ( int32_t index, wchar_t* out, int32_t room ) const;
 
@@ -751,7 +811,12 @@ namespace ui {
 		uint32_t filter_seen [ static_cast < int32_t > ( panel::COUNT ) ] = { };
 		base::list < int32_t > shown [ static_cast < int32_t > ( panel::COUNT ) ];
 		scroller browser_scroll [ static_cast < int32_t > ( panel::COUNT ) ];
-		int32_t browser_pick [ static_cast < int32_t > ( panel::COUNT ) ] = { -1, -1, -1, -1, -1, -1, -1, -1 };
+		int32_t browser_pick [ static_cast < int32_t > ( panel::COUNT ) ] = { -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+		int32_t expanded_struct = -1;
+		int32_t prompt_struct = -1;
+		int32_t prompt_offset = 0;
+		bool prompt_from_var = false;
+		base::text prompt_shown;
 		int32_t expanded_class = -1;
 		uint64_t references_for = ~0ull;
 		uint32_t references_revision = 0;
@@ -767,6 +832,9 @@ namespace ui {
 		row_columns listing_cols;
 		base::list < row_line > row_cache;
 		bool show_bytes = false;
+		base::text project_file;
+		bool autosave = false;
+		bool dirty = false;
 		base::list < uint64_t > breakpoints;
 		debugger::snapshot debug_state;
 		uint64_t debug_pc = 0;
@@ -783,6 +851,9 @@ namespace ui {
 		base::list < user_name > number_forms;
 		base::list < user_name > prototypes;
 		base::list < local_entry > locals;
+		base::list < user_struct > structs;
+		base::list < base::list < char > > undo_stack;
+		base::list < base::list < char > > redo_stack;
 		uint32_t names_revision = 0;
 
 		decompiler::cache code_cache;

@@ -254,8 +254,12 @@ namespace ui {
 
 			}
 
-			if ( code->lines [ static_cast < size_t > ( now->code_line ) ].address )
+			if ( code->lines [ static_cast < size_t > ( now->code_line ) ].address ) {
+
 				now->cursor_address = code->lines [ static_cast < size_t > ( now->code_line ) ].address;
+				sync_panes ( now->cursor_address );
+
+			}
 
 		}
 
@@ -450,7 +454,7 @@ namespace ui {
 
 		}
 
-		bool focused_view = focused && pane_document ( focused_pane ) >= 0 && &documents [ pane_document ( focused_pane ) ].state == now;
+		bool focused_view = focused && !focused_field && pane_document ( focused_pane ) >= 0 && &documents [ pane_document ( focused_pane ) ].state == now;
 
 		if ( focused_view && cursor_y > area.y - row_h && cursor_y < text_area.bottom ( ) ) {
 

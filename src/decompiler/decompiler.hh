@@ -45,9 +45,19 @@ namespace decompiler {
 
 	};
 
+	struct field_hint {
+
+		wchar_t var [ 64 ] = { };
+		int64_t offset = 0;
+		uint8_t size = 0;
+		uint8_t bits = 0;
+
+	};
+
 	struct result {
 
 		uint64_t function = 0;
+		base::list < field_hint > hints;
 		base::list < wchar_t > text;
 		base::list < span > spans;
 		base::list < line > lines;
@@ -68,6 +78,9 @@ namespace decompiler {
 		bool pointer = false;
 		bool empty = false;
 		bool custom = false;
+		int32_t stars = 0;
+		wchar_t pointee [ 48 ] = { };
+		wchar_t custom_name [ 48 ] = { };
 
 	};
 
@@ -115,6 +128,18 @@ namespace decompiler {
 		virtual bool spaced ( ) {
 
 			return false;
+
+		}
+
+		virtual bool struct_field ( const wchar_t*, int64_t, wchar_t*, int32_t, uint64_t&, int32_t& ) {
+
+			return false;
+
+		}
+
+		virtual const wchar_t* comment ( uint64_t ) {
+
+			return nullptr;
 
 		}
 

@@ -311,7 +311,7 @@ namespace ui {
 
 		}
 
-		bool focused_view = focused && pane_count >= 1 && pane_document ( focused_pane ) >= 0 && &documents [ pane_document ( focused_pane ) ].state == now;
+		bool focused_view = focused && !focused_field && pane_count >= 1 && pane_document ( focused_pane ) >= 0 && &documents [ pane_document ( focused_pane ) ].state == now;
 
 		if ( focused_view && cursor_top > area.y - row_h && cursor_top < area.bottom ( ) ) {
 

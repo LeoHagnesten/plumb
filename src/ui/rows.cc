@@ -635,6 +635,22 @@ namespace ui {
 
 	}
 
+	void app::sync_panes ( uint64_t address ) {
+
+		for ( int32_t p = 0; p < pane_count; p++ ) {
+
+			if ( p == focused_pane )
+				continue;
+
+			int32_t doc = pane_document ( p );
+
+			if ( doc >= 0 && documents [ doc ].kind == view::LISTING && address )
+				documents [ doc ].state.cursor_address = address;
+
+		}
+
+	}
+
 	void app::sync_breakpoints ( ) {
 
 		base::list < uint64_t > rvas;

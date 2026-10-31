@@ -14,6 +14,9 @@ namespace ui {
 
 	static const command_info commands [ static_cast < int32_t > ( command::COUNT ) ] = {
 		{ L"Open file", L"Ctrl+O" },
+		{ L"Save project", L"Ctrl+S" },
+		{ L"Undo", L"Ctrl+Z" },
+		{ L"Redo", L"Ctrl+Y" },
 		{ L"Close file", L"Ctrl+Shift+W" },
 		{ L"Exit", L"Alt+F4" },
 		{ L"Copy", L"Ctrl+C" },
@@ -40,8 +43,9 @@ namespace ui {
 		{ L"Strings", L"Alt+4" },
 		{ L"Sections", L"Alt+5" },
 		{ L"Classes from RTTI", L"Alt+6" },
+		{ L"Structures", L"Alt+7" },
 		{ L"References", L"X" },
-		{ L"Search results", L"Alt+8" },
+		{ L"Search results", L"Alt+9" },
 		{ L"Toggle browser", L"Ctrl+B" },
 		{ L"Toggle inspector", L"Ctrl+I" },
 		{ L"Toggle output", L"Ctrl+J" },
@@ -51,6 +55,7 @@ namespace ui {
 		{ L"Rename", L"N" },
 		{ L"Comment", L";" },
 		{ L"Set type or prototype", L"Y" },
+		{ L"Make struct from variable", L"S" },
 		{ L"Toggle bookmark", L"Ctrl+D" },
 		{ L"Number as hex or decimal", L"H" },
 		{ L"Number as character", L"R" },
@@ -61,6 +66,7 @@ namespace ui {
 		{ L"Find signature or bytes", L"Ctrl+Alt+F" },
 		{ L"Copy function as C", L"Ctrl+Shift+C" },
 		{ L"Show opcode bytes", L"" },
+		{ L"Autosave the project", L"" },
 		{ L"Spaces inside parentheses in C", L"" },
 		{ L"Start or continue", L"F9" },
 		{ L"Step into", L"F7" },
@@ -117,6 +123,7 @@ namespace ui {
 				return analyzed && db->is_covered ( now->cursor_address );
 
 			case command::SET_TYPE:
+			case command::STRUCT_FROM_VAR:
 				return analyzed;
 
 			case command::DEBUG_PAUSE:
@@ -171,6 +178,9 @@ namespace ui {
 			case command::TOGGLE_BYTES:
 				return show_bytes;
 
+			case command::TOGGLE_AUTOSAVE:
+				return autosave;
+
 			case command::TOGGLE_SPACING:
 				return c_spaced;
 
@@ -207,7 +217,24 @@ namespace ui {
 				break;
 
 			case command::CLOSE:
-				close_file ( );
+
+				if ( confirm_discard ( ) )
+					close_file ( );
+
+				break;
+
+			case command::UNDO:
+			case command::REDO:
+				undo ( action == command::REDO );
+				break;
+
+			case command::TOGGLE_AUTOSAVE:
+				autosave = !autosave;
+				log ( log_kind::INFO, autosave ? L"Autosave is on. Every change is written to the project as you make it." : L"Autosave is off. Ctrl+S saves the project." );
+
+				if ( autosave && dirty )
+					changed ( );
+
 				break;
 
 			case command::EXIT:
@@ -503,6 +530,7 @@ namespace ui {
 			case command::SHOW_STRINGS:
 			case command::SHOW_SECTIONS:
 			case command::SHOW_CLASSES:
+			case command::SHOW_STRUCTS:
 			case command::SHOW_REFERENCES:
 			case command::SHOW_SEARCH:
 				browsing = static_cast < panel > ( static_cast < int32_t > ( action ) - static_cast < int32_t > ( command::SHOW_FUNCTIONS ) );
@@ -520,6 +548,42 @@ namespace ui {
 			case command::TOGGLE_BYTES:
 				show_bytes = !show_bytes;
 				break;
+
+			case command::SAVE_PROJECT: {
+
+				if ( project_file.empty ( ) ) {
+
+					base::writer beside;
+
+					beside.add ( file.path.get ( ) ).add ( L".plumb" );
+
+					HANDLE probe = CreateFileW ( beside.text ( ), GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr );
+
+					if ( probe != INVALID_HANDLE_VALUE ) {
+
+						CloseHandle ( probe );
+						project_file.set ( beside.text ( ) );
+
+					} else {
+
+						base::writer folder;
+
+						folder.add ( files::folder ( ) ).add ( L"\\projects" );
+						CreateDirectoryW ( folder.text ( ), nullptr );
+						folder.add ( L"\\" ).add ( file.name.get ( ) ).add ( L".plumb" );
+						project_file.set ( folder.text ( ) );
+
+					}
+
+				}
+
+				save_project ( );
+				dirty = false;
+				log ( log_kind::GOOD, base::writer ( ).add ( L"Saved the project to " ).add ( project_file.get ( ) ).text ( ) );
+
+				break;
+
+			}
 
 			case command::TOGGLE_SPACING:
 				c_spaced = !c_spaced;
@@ -572,6 +636,8 @@ namespace ui {
 				uint64_t address = now->cursor_address;
 				bool removed = false;
 
+				remember_undo ( );
+
 				for ( int32_t i = 0; i < breakpoints.count ( ); i++ ) {
 
 					if ( breakpoints [ static_cast < size_t > ( i ) ] == address ) {
@@ -589,7 +655,7 @@ namespace ui {
 					breakpoints.push ( address );
 
 				sync_breakpoints ( );
-				save_project ( );
+				changed ( );
 				log ( log_kind::INFO, base::writer ( ).add ( removed ? L"Breakpoint removed at " : L"Breakpoint set at " ).hex ( address ).text ( ) );
 
 				break;
@@ -669,7 +735,44 @@ namespace ui {
 
 			}
 
+			case command::STRUCT_FROM_VAR: {
+
+				wchar_t key [ 64 ];
+				wchar_t shown [ 64 ];
+
+				if ( showing != view::PSEUDOCODE || !code_variable ( key, shown ) ) {
+
+					log ( log_kind::WARN, L"Put the caret on a pointer variable in the C view, then press S." );
+
+					break;
+
+				}
+
+				open_code_prompt ( command::SET_TYPE, 6, key, base::writer ( ).add ( shown ).add ( L"_t" ).text ( ) );
+				prompt_from_var = true;
+				prompt_shown.set ( shown );
+
+				break;
+
+			}
+
 			case command::SET_TYPE: {
+
+				int32_t field_struct = -1;
+				int32_t field_offset = 0;
+
+				if ( showing == view::PSEUDOCODE && code_field ( field_struct, field_offset ) ) {
+
+					for ( const user_field& item : structs [ static_cast < size_t > ( field_struct ) ].fields ) {
+
+						if ( item.offset == field_offset )
+							open_struct_prompt ( 5, field_struct, field_offset, item.type.get ( ) );
+
+					}
+
+					break;
+
+				}
 
 				if ( showing != view::PSEUDOCODE ) {
 
@@ -795,6 +898,21 @@ namespace ui {
 
 					wchar_t key [ 64 ];
 					wchar_t shown [ 64 ];
+					int32_t field_struct = -1;
+					int32_t field_offset = 0;
+
+					if ( code_field ( field_struct, field_offset ) ) {
+
+						for ( const user_field& item : structs [ static_cast < size_t > ( field_struct ) ].fields ) {
+
+							if ( item.offset == field_offset )
+								open_struct_prompt ( 4, field_struct, field_offset, item.name.get ( ) );
+
+						}
+
+						break;
+
+					}
 
 					if ( code_variable ( key, shown ) ) {
 
@@ -881,14 +999,17 @@ namespace ui {
 
 				}
 
+				remember_undo ( );
 				set_user_text ( number_forms, address, form );
-				save_project ( );
+				changed ( );
 
 				break;
 
 			}
 
 			case command::BOOKMARK:
+
+				remember_undo ( );
 
 				if ( user_text ( bookmarks, now->cursor_address ) ) {
 
@@ -915,7 +1036,7 @@ namespace ui {
 
 				}
 
-				save_project ( );
+				changed ( );
 
 				break;
 
@@ -1040,7 +1161,7 @@ namespace ui {
 
 			set_user_text ( rename ? renamed : comments, target, rest );
 			names_revision++;
-			save_project ( );
+			changed ( );
 
 		} else if ( base::same_text ( word, L"theme" ) )
 			set_theme ( base::same_text ( rest, L"light" ) || ( !rest [ 0 ] && !light ) );

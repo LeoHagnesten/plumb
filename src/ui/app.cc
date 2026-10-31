@@ -104,7 +104,10 @@ namespace ui {
 			save_settings ( );
 
 		wait_analysis ( );
-		save_project ( );
+
+		if ( autosave )
+			save_project ( );
+
 		files::settle ( );
 		file.close ( );
 
@@ -440,42 +443,68 @@ namespace ui {
 		if ( halt_glide ) {
 
 			item.target = item.offset;
+			item.goal = item.offset;
 			item.velocity = 0.0f;
+			item.elapsed = item.duration;
 
 		}
 
 		item.limit = base::max ( limit, 0.0f );
 		item.target = base::clamp ( item.target, 0.0f, item.limit );
 
-		float gap = item.target - item.offset;
+		if ( item.target != item.goal ) {
 
-		item.velocity = 0.0f;
+			float distance = math::abs ( item.target - item.offset ) * pixels;
+			float reach = 900.0f * dpi / pixels;
 
-		if ( math::abs ( gap ) * pixels < 0.5f ) {
+			if ( math::abs ( item.target - item.offset ) > reach ) {
 
-			item.offset = item.target;
+				item.offset = item.target - ( item.target < item.offset ? -reach : reach );
+				item.velocity = 0.0f;
+
+			}
+
+			item.from = item.offset;
+			item.from_velocity = item.velocity;
+			item.goal = item.target;
+			item.elapsed = 0.0f;
+			item.duration = 0.2f + 0.08f * base::min ( distance / ( 900.0f * dpi ), 1.0f );
+
+		}
+
+		if ( item.elapsed >= item.duration || item.duration <= 0.0f ) {
+
+			item.offset = item.goal;
+			item.velocity = 0.0f;
 			item.shown = math::round ( item.offset * pixels ) / pixels;
 
 			return;
 
 		}
 
-		float reach = 520.0f * dpi / pixels;
+		item.elapsed = base::min ( item.elapsed + dt, item.duration );
 
-		if ( math::abs ( gap ) > reach ) {
+		float span = item.duration;
+		float s = item.elapsed / span;
+		float s2 = s * s;
+		float s3 = s2 * s;
+		float h00 = 2.0f * s3 - 3.0f * s2 + 1.0f;
+		float h10 = s3 - 2.0f * s2 + s;
+		float h01 = -2.0f * s3 + 3.0f * s2;
+		float d00 = 6.0f * s2 - 6.0f * s;
+		float d10 = 3.0f * s2 - 4.0f * s + 1.0f;
+		float d01 = -6.0f * s2 + 6.0f * s;
 
-			item.offset = item.target - ( gap < 0.0f ? -reach : reach );
-			gap = item.target - item.offset;
+		item.offset = h00 * item.from + h10 * span * item.from_velocity + h01 * item.goal;
+		item.velocity = ( d00 * item.from + d10 * span * item.from_velocity + d01 * item.goal ) / span;
+
+		if ( item.elapsed >= item.duration ) {
+
+			item.offset = item.goal;
+			item.velocity = 0.0f;
 
 		}
 
-		float step = gap * ( 1.0f - math::exp ( -17.0f * dt ) );
-		float least = 260.0f * dpi * dt / pixels;
-
-		if ( math::abs ( step ) < least )
-			step = gap < 0.0f ? -base::min ( least, -gap ) : base::min ( least, gap );
-
-		item.offset += step;
 		item.shown = math::round ( item.offset * pixels ) / pixels;
 		animating = true;
 

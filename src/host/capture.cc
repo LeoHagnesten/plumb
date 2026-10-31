@@ -232,6 +232,8 @@ static bool capture_mode ( ) {
 			step ( base::max ( static_cast < int32_t > ( reader.number ( ) * 60.0f + 0.5f ), 1 ) );
 		else if ( base::same_text ( command, L"frames" ) )
 			step ( static_cast < int32_t > ( reader.number ( ) ) );
+		else if ( base::same_text ( command, L"persist" ) )
+			app->persist = true;
 		else if ( base::same_text ( command, L"sleep" ) ) {
 
 			Sleep ( static_cast < DWORD > ( reader.number ( ) * 1000.0f ) );

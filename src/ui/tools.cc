@@ -42,7 +42,7 @@ namespace ui {
 			if ( part.kind != decompiler::syntax::LOCAL && part.kind != decompiler::syntax::PARAMETER )
 				continue;
 
-			if ( column < start || column > start + part.length )
+			if ( column < start - 1 || column > start + part.length )
 				continue;
 
 			int32_t length = base::min ( part.length, 62 );
@@ -206,6 +206,9 @@ namespace ui {
 		focus_id = 0;
 		focused_field = nullptr;
 
+		if ( prompt_action != command::FIND_SIGNATURE )
+			remember_undo ( );
+
 		switch ( prompt_action ) {
 
 			case command::RENAME:
@@ -218,10 +221,19 @@ namespace ui {
 
 				}
 
+				if ( prompt_mode == 4 ) {
+
+					if ( apply_struct_prompt ( text ) )
+						changed ( );
+
+					break;
+
+				}
+
 				if ( prompt_mode == 1 ) {
 
 					set_local ( prompt_function, prompt_key.get ( ), text, nullptr );
-					save_project ( );
+					changed ( );
 					log ( log_kind::INFO, length ? base::writer ( ).add ( L"Renamed " ).add ( prompt_key.get ( ) ).add ( L" to " ).add ( text ).text ( ) : L"Variable name reset." );
 
 					break;
@@ -230,13 +242,13 @@ namespace ui {
 
 				set_user_text ( renamed, prompt_address, text );
 				refresh_filter ( panel::FUNCTIONS );
-				save_project ( );
+				changed ( );
 				log ( log_kind::INFO, length ? base::writer ( ).add ( L"Renamed to " ).add ( text ).text ( ) : L"Name reset." );
 				break;
 
 			case command::COMMENT:
 				set_user_text ( comments, prompt_address, text );
-				save_project ( );
+				changed ( );
 				break;
 
 			case command::FIND_SIGNATURE:
@@ -244,6 +256,15 @@ namespace ui {
 				break;
 
 			case command::SET_TYPE: {
+
+				if ( prompt_mode >= 5 ) {
+
+					if ( apply_struct_prompt ( text ) )
+						changed ( );
+
+					break;
+
+				}
 
 				if ( prompt_mode == 2 ) {
 
@@ -265,15 +286,22 @@ namespace ui {
 
 						}
 
-						if ( shape.custom )
-							log ( log_kind::WARN, base::writer ( ).add ( clean ).add ( L" isn't a known type, so it's treated as a pointer-sized integer." ).text ( ) );
+						base::writer problem;
+
+						if ( !known_type ( shape, problem ) ) {
+
+							log ( log_kind::WARN, problem.text ( ) );
+
+							return;
+
+						}
 
 						set_local ( prompt_function, prompt_key.get ( ), nullptr, clean );
 						log ( log_kind::INFO, base::writer ( ).add ( prompt_key.get ( ) ).add ( L" is now " ).add ( clean ).add ( L"." ).text ( ) );
 
 					}
 
-					save_project ( );
+					changed ( );
 
 					break;
 
@@ -283,7 +311,7 @@ namespace ui {
 
 					set_user_text ( prototypes, prompt_function, L"" );
 					log ( log_kind::INFO, L"Prototype reset to what the decompiler inferred." );
-					save_project ( );
+					changed ( );
 
 					break;
 
@@ -300,6 +328,20 @@ namespace ui {
 
 				}
 
+				for ( int32_t i = -1; i < shape.count; i++ ) {
+
+					base::writer problem;
+
+					if ( !known_type ( i < 0 ? shape.result_type : shape.params [ i ], problem ) ) {
+
+						log ( log_kind::WARN, problem.text ( ) );
+
+						return;
+
+					}
+
+				}
+
 				set_user_text ( prototypes, prompt_function, text );
 
 				if ( shape.name [ 0 ] ) {
@@ -311,15 +353,8 @@ namespace ui {
 
 				}
 
-				for ( int32_t i = 0; i < shape.count; i++ ) {
-
-					if ( shape.params [ i ].custom )
-						log ( log_kind::WARN, base::writer ( ).add ( shape.types [ i ] ).add ( L" isn't a known type, so it's treated as a pointer-sized integer." ).text ( ) );
-
-				}
-
 				refresh_filter ( panel::FUNCTIONS );
-				save_project ( );
+				changed ( );
 				log ( log_kind::GOOD, base::writer ( ).add ( L"Prototype applied: " ).number ( shape.count ).add ( shape.count == 1 ? L" argument" : L" arguments" ).add ( shape.variadic ? L" plus varargs" : L"" ).add ( L". Callers decompile with the new signature." ).text ( ) );
 
 				break;

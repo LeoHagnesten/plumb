@@ -349,6 +349,9 @@ namespace ui {
 
 		c.pop_clip ( );
 
+		if ( focus_id == id )
+			focus_drawn = true;
+
 		bool submitted = focused_now && field_submit;
 
 		if ( submitted )
