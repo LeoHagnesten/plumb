@@ -1,7 +1,7 @@
-#include "image/image.hh"
+#include "loader/binary.hh"
 #include <windows.h>
 
-namespace image {
+namespace loader {
 
 	static const wchar_t* directory_names [ 16 ] = { L"Export", L"Import", L"Resource", L"Exception", L"Security", L"Base relocation", L"Debug", L"Architecture", L"Global pointer", L"TLS", L"Load config", L"Bound import", L"IAT", L"Delay import", L"CLR runtime", L"Reserved" };
 

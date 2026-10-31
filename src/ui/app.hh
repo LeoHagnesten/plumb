@@ -1,7 +1,10 @@
 #pragma once
 
 #include "render/render.hh"
-#include "image/image.hh"
+#include "loader/binary.hh"
+#include "analysis/database.hh"
+#include "analysis/signatures.hh"
+#include "decompiler/decompiler.hh"
 
 namespace ui {
 
@@ -37,10 +40,10 @@ namespace ui {
 	enum class view : int32_t {
 
 		LISTING,
-		HEX,
-		HEADERS,
 		GRAPH,
 		PSEUDOCODE,
+		HEX,
+		HEADERS,
 		COUNT,
 
 	};
@@ -52,6 +55,9 @@ namespace ui {
 		EXPORTS,
 		STRINGS,
 		SECTIONS,
+		CLASSES,
+		REFERENCES,
+		SEARCH,
 		COUNT,
 
 	};
@@ -92,6 +98,17 @@ namespace ui {
 		DANGER,
 		SUCCESS,
 		WARNING,
+		KEYWORD,
+		CONTROL,
+		TYPE,
+		FUNCTION,
+		LOCAL,
+		PARAMETER,
+		GLOBAL,
+		OPERATOR,
+		REGISTER,
+		IMPORT,
+		GUIDE,
 		COUNT,
 
 	};
@@ -111,21 +128,38 @@ namespace ui {
 		FIND,
 		PALETTE,
 		VIEW_LISTING,
+		VIEW_PSEUDOCODE,
 		VIEW_HEX,
 		VIEW_HEADERS,
-		VIEW_GRAPH,
-		VIEW_PSEUDOCODE,
+		SWAP_VIEW,
+		TOGGLE_GRAPH,
+		SPLIT,
+		CLOSE_TAB,
+		NEXT_TAB,
 		SHOW_FUNCTIONS,
 		SHOW_IMPORTS,
 		SHOW_EXPORTS,
 		SHOW_STRINGS,
 		SHOW_SECTIONS,
+		SHOW_CLASSES,
+		SHOW_REFERENCES,
+		SHOW_SEARCH,
 		TOGGLE_BROWSER,
 		TOGGLE_INSPECTOR,
 		TOGGLE_OUTPUT,
 		THEME,
-		ANALYZE,
-		DECODE_HERE,
+		FOLLOW,
+		RENAME,
+		COMMENT,
+		BOOKMARK,
+		NUMBER_RADIX,
+		NUMBER_CHAR,
+		NUMBER_BINARY,
+		NUMBER_FLOAT,
+		NUMBER_RESET,
+		MAKE_SIGNATURE,
+		FIND_SIGNATURE,
+		COPY_FUNCTION,
 		SHORTCUTS,
 		ABOUT,
 		COUNT,
@@ -142,6 +176,12 @@ namespace ui {
 		STRING,
 		POINTER,
 		EMPTY,
+		FUNCTION,
+		END,
+		ALIGN,
+		TABLE,
+		CHUNK,
+		VTABLE,
 
 	};
 
@@ -190,27 +230,20 @@ namespace ui {
 		float target = 0.0f;
 		float velocity = 0.0f;
 		float limit = 0.0f;
+		float shown = 0.0f;
 
 	};
 
 	struct line_item {
 
-		line_kind kind = line_kind::BLANK;
-		int32_t section = 0;
+		uint64_t first_row = 0;
 		uint64_t address = 0;
 		uint64_t size = 0;
-		uint64_t first_row = 0;
 		uint32_t rows = 1;
-		uint32_t stride = 8;
 		int32_t ref = -1;
-		bool function = false;
-
-	};
-
-	struct label_entry {
-
-		uint64_t address = 0;
-		int32_t name = -1;
+		line_kind kind = line_kind::BLANK;
+		uint8_t stride = 8;
+		uint8_t section = 0;
 		bool function = false;
 
 	};
@@ -227,6 +260,104 @@ namespace ui {
 
 		command action = command::COUNT;
 		int32_t score = 0;
+		int32_t function = -1;
+
+	};
+
+	struct view_state {
+
+		scroller listing_scroll;
+		uint64_t cursor_row = 0;
+		float cursor_y = 0.0f;
+		float cursor_velocity = 0.0f;
+		uint64_t cursor_address = 0;
+		bool cursor_ready = false;
+		uint64_t select_anchor = 0;
+		bool selecting = false;
+		bool ranged = false;
+		uint64_t row_for = ~0ull;
+		uint32_t row_build = 0;
+		int32_t code_anchor = 0;
+		bool code_selecting = false;
+		bool code_ranged = false;
+		int32_t code_token = -1;
+		uint64_t code_seen = 0;
+		uint32_t code_seen_revision = 0;
+		scroller code_side;
+		scroller hex_scroll;
+		uint64_t hex_cursor = 0;
+		uint64_t hex_anchor = 0;
+		bool hex_selecting = false;
+		scroller headers_scroll;
+		scroller code_scroll;
+		int32_t code_line = 0;
+		float code_y = 0.0f;
+		float code_velocity = 0.0f;
+		bool code_ready = false;
+		uint64_t function = 0;
+		float graph_x = 0.0f;
+		float graph_y = 0.0f;
+		float graph_zoom = 1.0f;
+		float graph_tx = 0.0f;
+		float graph_ty = 0.0f;
+		float graph_tzoom = 1.0f;
+		uint64_t graph_function = 0;
+		int32_t graph_block = 0;
+		bool graph_ready = false;
+		bool dragging = false;
+		math::vec2 drag_from;
+		math::vec2 drag_origin;
+		base::list < uint64_t > back_stack;
+		base::list < uint64_t > forward_stack;
+
+	};
+
+	struct document {
+
+		bool used = false;
+		view kind = view::LISTING;
+		uint32_t serial = 0;
+		view_state state;
+		float fade = 1.0f;
+
+	};
+
+	struct pane {
+
+		int32_t tabs [ 16 ] = { };
+		int32_t count = 0;
+		int32_t active = 0;
+		math::rect area;
+		math::rect strip;
+		math::rect body;
+		float tab_x = 0.0f;
+		float tab_w = 0.0f;
+		float tab_vx = 0.0f;
+		float tab_vw = 0.0f;
+		bool tab_ready = false;
+
+	};
+
+	struct user_name {
+
+		uint64_t address = 0;
+		base::text text;
+
+	};
+
+	struct search_hit {
+
+		uint64_t address = 0;
+		uint32_t length = 0;
+
+	};
+
+	struct token_run {
+
+		int32_t start = 0;
+		int32_t length = 0;
+		tone color = tone::INK;
+		uint64_t target = 0;
 
 	};
 
@@ -286,10 +417,31 @@ namespace ui {
 
 		void log ( log_kind kind, const wchar_t* text );
 
+		void analysis_finished ( );
+
+		bool symbol_name ( uint64_t address, bool code, wchar_t* out, int32_t room ) const;
+
+		bool number_text ( uint64_t at, uint64_t raw, uint8_t size, wchar_t* out, int32_t room ) const;
+
+		void function_name ( int32_t index, wchar_t* out, int32_t room ) const;
+
+		int32_t string_at ( uint64_t address ) const;
+
+		bool indirect_note ( const x86::instruction& ins, base::writer& out ) const;
+
+		void row_text ( uint64_t row, base::writer& out ) const;
+
 		render::gpu* gpu = nullptr;
 		void* window = nullptr;
 		render::canvas canvas;
-		image::binary file;
+		loader::binary file;
+		analysis::database* db = nullptr;
+		analysis::progress analysis_state;
+		void* analysis_thread = nullptr;
+		volatile long analysis_done = 0;
+		bool analysis_applied = false;
+		bool analysis_sync = false;
+		double analysis_clock = 0.0;
 		int32_t width = 0;
 		int32_t height = 0;
 		float dpi = 1.0f;
@@ -319,15 +471,18 @@ namespace ui {
 		bool release_event = false;
 		bool right_event = false;
 		bool double_event = false;
+		bool middle_event = false;
 		double last_press = -10.0;
 		math::vec2 press_at;
 		float wheel_steps = 0.0f;
 		float wheel_side = 0.0f;
+		bool halt_glide = false;
 		uint64_t hot = 0;
 		uint64_t active_id = 0;
 		uint64_t clicked_id = 0;
 		uint64_t double_id = 0;
 		uint64_t right_id = 0;
+		uint64_t middle_id = 0;
 		uint64_t scroll_hot = 0;
 		base::list < hit_rect > hits;
 		base::list < hit_rect > next_hits;
@@ -364,7 +519,6 @@ namespace ui {
 		math::rect inspector_area;
 		math::rect output_area;
 		math::rect center_area;
-		math::rect tabs_area;
 		math::rect view_area;
 
 		float browser_width = 288.0f;
@@ -383,17 +537,21 @@ namespace ui {
 		float output_velocity = 0.0f;
 		int32_t dragging_split = 0;
 		float split_grab = 0.0f;
+		float pane_split = 0.5f;
 
 		panel browsing = panel::FUNCTIONS;
 		float rail_marker = 0.0f;
 		float rail_velocity = 0.0f;
 		view showing = view::LISTING;
-		float tab_x = 0.0f;
-		float tab_w = 0.0f;
-		float tab_vx = 0.0f;
-		float tab_vw = 0.0f;
-		bool tab_ready = false;
-		float view_fade = 1.0f;
+
+		document documents [ 16 ];
+		pane panes [ 2 ];
+		int32_t pane_count = 1;
+		int32_t focused_pane = 0;
+		uint32_t next_serial = 1;
+		view_state spare_state;
+		view_state* now = &spare_state;
+		uint32_t drawing_serial = 0;
 
 		int32_t menu_open = -1;
 		float menu_show = 0.0f;
@@ -420,34 +578,52 @@ namespace ui {
 		float keys_show = 0.0f;
 		float keys_velocity = 0.0f;
 
+		bool prompt_open = false;
+		float prompt_show = 0.0f;
+		float prompt_velocity = 0.0f;
+		command prompt_action = command::COUNT;
+		uint64_t prompt_address = 0;
+		field prompt_field;
+
+		bool signature_open = false;
+		float signature_show = 0.0f;
+		float signature_velocity = 0.0f;
+		analysis::signature signature_result;
+		bool signature_ok = false;
+		double signature_seconds = 0.0;
+		int32_t signature_copied = -1;
+		double signature_copied_at = -10.0;
+
 		field filters [ static_cast < int32_t > ( panel::COUNT ) ];
 		uint32_t filter_seen [ static_cast < int32_t > ( panel::COUNT ) ] = { };
 		base::list < int32_t > shown [ static_cast < int32_t > ( panel::COUNT ) ];
 		scroller browser_scroll [ static_cast < int32_t > ( panel::COUNT ) ];
-		int32_t browser_pick [ static_cast < int32_t > ( panel::COUNT ) ] = { -1, -1, -1, -1, -1 };
+		int32_t browser_pick [ static_cast < int32_t > ( panel::COUNT ) ] = { -1, -1, -1, -1, -1, -1, -1, -1 };
+		int32_t expanded_class = -1;
+		uint64_t references_for = ~0ull;
+		uint32_t references_revision = 0;
+		base::list < analysis::xref > reference_list;
+		base::list < search_hit > search_hits;
+		base::text search_query;
+		double search_seconds = 0.0;
+		bool search_truncated = false;
 
 		base::list < line_item > items;
-		base::list < label_entry > labels;
 		base::list < base::text > names;
 		uint64_t total_rows = 0;
-		scroller listing_scroll;
-		uint64_t cursor_row = 0;
-		float cursor_y = 0.0f;
-		float cursor_velocity = 0.0f;
-		uint64_t cursor_address = 0;
-		bool cursor_ready = false;
+		uint32_t listing_build = 1;
+		base::list < uint64_t > string_addresses;
+		base::list < int32_t > string_order;
+		base::list < user_name > renamed;
+		base::list < user_name > comments;
+		base::list < user_name > bookmarks;
+		base::list < user_name > number_forms;
+		uint32_t names_revision = 0;
 
-		scroller hex_scroll;
-		uint64_t hex_cursor = 0;
-		uint64_t hex_anchor = 0;
-		bool hex_selecting = false;
+		decompiler::cache code_cache;
 
-		scroller headers_scroll;
 		scroller inspector_scroll;
 		scroller output_scroll;
-
-		base::list < uint64_t > back_stack;
-		base::list < uint64_t > forward_stack;
 
 		base::list < log_line > output;
 		field command_field;
@@ -476,7 +652,7 @@ namespace ui {
 
 		void spring ( float& value, float& velocity, float target, float stiffness, float damping );
 
-		void glide ( scroller& item, float limit );
+		void glide ( scroller& item, float limit, float unit = 1.0f );
 
 		bool begin_frame ( double seconds );
 
@@ -498,7 +674,15 @@ namespace ui {
 
 		bool checked ( command action ) const;
 
+		void start_analysis ( );
+
+		void wait_analysis ( );
+
 		void build_listing ( );
+
+		void build_code_items ( int32_t section, uint64_t& rows );
+
+		void push_item ( line_kind kind, int32_t section, uint64_t address, uint64_t size, uint32_t rows, uint8_t stride, int32_t ref, uint64_t& total );
 
 		uint64_t row_of ( uint64_t address ) const;
 
@@ -516,13 +700,49 @@ namespace ui {
 
 		void refresh_filter ( panel which );
 
+		void refresh_references ( );
+
 		void run_command_line ( );
 
 		void copy_text ( const wchar_t* text );
 
 		void remember_recent ( const wchar_t* path );
 
-		void label_name ( int32_t name, wchar_t* out, int32_t room ) const;
+		void forget_recent ( int32_t index );
+
+		void string_label ( int32_t index, wchar_t* out, int32_t room ) const;
+
+		const wchar_t* user_text ( const base::list < user_name >& list, uint64_t address ) const;
+
+		void set_user_text ( base::list < user_name >& list, uint64_t address, const wchar_t* text );
+
+		void load_project ( );
+
+		void save_project ( );
+
+		int32_t open_document ( view kind, int32_t target_pane, uint64_t address );
+
+		void close_document ( int32_t target_pane, int32_t tab );
+
+		void focus_document ( int32_t target_pane, int32_t tab );
+
+		int32_t current_document ( ) const;
+
+		int32_t pane_document ( int32_t index ) const;
+
+		void select_state ( int32_t document_index );
+
+		void open_pseudocode ( uint64_t address, bool other_pane );
+
+		const decompiler::result* pseudocode_for ( uint64_t function );
+
+		void make_signature ( uint64_t address );
+
+		void find_signature ( const wchar_t* text );
+
+		void open_prompt ( command action, uint64_t address );
+
+		void apply_prompt ( );
 
 		void draw_brand ( math::vec2 center, float height );
 
@@ -542,17 +762,21 @@ namespace ui {
 
 		void draw_browser_rows ( panel which, math::rect area );
 
-		void draw_tabs ( );
+		void draw_panes ( );
 
-		void draw_view ( );
+		void draw_tabs ( int32_t index );
+
+		void draw_document ( int32_t index );
 
 		void draw_listing ( math::rect area );
+
+		void draw_graph ( math::rect area );
+
+		void draw_pseudocode ( math::rect area );
 
 		void draw_hex ( math::rect area );
 
 		void draw_headers ( math::rect area );
-
-		void draw_pending ( math::rect area, const wchar_t* title, const wchar_t* detail, uint32_t glyph );
 
 		void draw_inspector ( );
 
@@ -564,9 +788,15 @@ namespace ui {
 
 		void draw_dialogs ( );
 
+		void draw_prompt ( );
+
+		void draw_signature ( );
+
 		void draw_tip ( );
 
 		void draw_scrollbar ( uint64_t id, math::rect track, scroller& item, float content, float page );
+
+		void draw_side_scrollbar ( uint64_t id, math::rect track, scroller& item, float content, float page );
 
 		bool splitter ( uint64_t id, math::rect area, bool vertical );
 
