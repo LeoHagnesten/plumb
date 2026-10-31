@@ -34,7 +34,8 @@ namespace x86 {
 		CR0 = 189,
 		DR0 = 205,
 		K0 = 221,
-		REG_COUNT = 229,
+		TMM0 = 229,
+		REG_COUNT = 237,
 
 	};
 
@@ -129,8 +130,8 @@ namespace x86 {
 		uint8_t mask = 0;
 		uint8_t broadcast = 0;
 		bool zeroing = false;
-		bool rounding = false;
-		operand operands [ 4 ];
+		uint8_t rounding = 0;
+		operand operands [ 5 ];
 
 		bool valid ( ) const {
 

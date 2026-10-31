@@ -194,7 +194,7 @@ namespace ui {
 				return browser_open;
 
 			case command::TOGGLE_INSPECTOR:
-				return inspector_open;
+				return browser_open && browsing == panel::INSPECTOR;
 
 			case command::TOGGLE_OUTPUT:
 				return output_open;
@@ -585,7 +585,14 @@ namespace ui {
 
 					base::writer beside;
 
-					beside.add ( file.path.get ( ) ).add ( L".plumb" );
+					project_beside ( beside );
+
+					if ( !project_ours ( beside.text ( ) ) ) {
+
+						beside.clear ( );
+						beside.add ( file.path.get ( ) ).add ( L".plumb" );
+
+					}
 
 					HANDLE probe = CreateFileW ( beside.text ( ), GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr );
 
@@ -742,7 +749,16 @@ namespace ui {
 				break;
 
 			case command::TOGGLE_INSPECTOR:
-				inspector_open = !inspector_open;
+
+				if ( browser_open && browsing == panel::INSPECTOR )
+					browser_open = false;
+				else {
+
+					browsing = panel::INSPECTOR;
+					browser_open = true;
+
+				}
+
 				break;
 
 			case command::TOGGLE_OUTPUT:

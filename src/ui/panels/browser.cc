@@ -3,9 +3,9 @@
 
 namespace ui {
 
-	static const uint32_t panel_glyphs [ static_cast < int32_t > ( panel::COUNT ) ] = { icons::CODE, icons::IMPORT, icons::EXPORT, icons::FONT, icons::LAYERS, icons::PUZZLE, icons::FORM, icons::LINK, icons::SEARCH };
-	static const wchar_t* panel_titles [ static_cast < int32_t > ( panel::COUNT ) ] = { L"Functions", L"Imports", L"Exports", L"Strings", L"Sections", L"Classes", L"Structures", L"References", L"Search" };
-	static const wchar_t* panel_hints [ static_cast < int32_t > ( panel::COUNT ) ] = { L"Filter functions", L"Filter imports or modules", L"Filter exports", L"Search strings", L"Filter sections", L"Filter classes", L"Filter structures", L"Filter by function", L"Filter results" };
+	static const uint32_t panel_glyphs [ static_cast < int32_t > ( panel::COUNT ) ] = { icons::CODE, icons::IMPORT, icons::EXPORT, icons::FONT, icons::LAYERS, icons::PUZZLE, icons::FORM, icons::LINK, icons::SEARCH, icons::INFO };
+	static const wchar_t* panel_titles [ static_cast < int32_t > ( panel::COUNT ) ] = { L"Functions", L"Imports", L"Exports", L"Strings", L"Sections", L"Classes", L"Structures", L"References", L"Search", L"Inspector" };
+	static const wchar_t* panel_hints [ static_cast < int32_t > ( panel::COUNT ) ] = { L"Filter functions", L"Filter imports or modules", L"Filter exports", L"Search strings", L"Filter sections", L"Filter classes", L"Filter structures", L"Filter by function", L"Filter results", L"" };
 
 	static const wchar_t* ref_word ( analysis::ref type ) {
 
@@ -108,6 +108,15 @@ namespace ui {
 
 		c.push_clip ( area );
 		c.fill ( area, 0.0f, ink ( tone::PANEL ) );
+
+		if ( browsing == panel::INSPECTOR ) {
+
+			draw_inspector ( area, inner_w );
+			c.pop_clip ( );
+
+			return;
+
+		}
 
 		float x = area.right ( ) - inner_w;
 		base::writer count;

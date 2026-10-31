@@ -77,4 +77,72 @@
 	X ( kmovb ) X ( kmovw ) X ( kmovd ) X ( kmovq ) X ( kortestb ) X ( kortestw ) X ( kortestd ) X ( kortestq ) X ( ktestb ) X ( ktestw ) X ( ktestd ) X ( ktestq ) \
 	X ( kandb ) X ( kandw ) X ( kandd ) X ( kandq ) X ( kandnb ) X ( kandnw ) X ( kandnd ) X ( kandnq ) X ( knotb ) X ( knotw ) X ( knotd ) X ( knotq ) \
 	X ( korb ) X ( korw ) X ( kord ) X ( korq ) X ( kxnorb ) X ( kxnorw ) X ( kxnord ) X ( kxnorq ) X ( kxorb ) X ( kxorw ) X ( kxord ) X ( kxorq ) \
-	X ( kaddb ) X ( kaddw ) X ( kaddd ) X ( kaddq ) X ( kunpckbw ) X ( kunpckwd ) X ( kunpckdq )
+	X ( kaddb ) X ( kaddw ) X ( kaddd ) X ( kaddq ) X ( kunpckbw ) X ( kunpckwd ) X ( kunpckdq ) \
+	X ( femms ) X ( pi2fw ) X ( pi2fd ) X ( pf2iw ) X ( pf2id ) X ( pfnacc ) X ( pfpnacc ) X ( pfcmpge ) X ( pfmin ) X ( pfrcp ) X ( pfrsqrt ) X ( pfsub ) \
+	X ( pfadd ) X ( pfcmpgt ) X ( pfmax ) X ( pfrcpit1 ) X ( pfrsqit1 ) X ( pfsubr ) X ( pfacc ) X ( pfcmpeq ) X ( pfmul ) X ( pfrcpit2 ) X ( pmulhrw ) X ( pswapd ) \
+	X ( pavgusb ) X ( sha1nexte ) X ( sha1msg1 ) X ( sha1msg2 ) X ( sha256rnds2 ) X ( sha256msg1 ) X ( sha256msg2 ) X ( sha1rnds4 ) X ( gf2p8mulb ) X ( gf2p8affineqb ) X ( gf2p8affineinvqb ) X ( movdiri ) \
+	X ( movdir64b ) X ( enqcmd ) X ( enqcmds ) X ( wrssd ) X ( wrssq ) X ( wrussd ) X ( wrussq ) X ( rstorssp ) X ( clrssbsy ) X ( setssbsy ) X ( saveprevssp ) X ( enclv ) \
+	X ( encls ) X ( enclu ) X ( pconfig ) X ( pbndkb ) X ( wrmsrns ) X ( wrmsrlist ) X ( rdmsrlist ) X ( vmfunc ) X ( vmrun ) X ( vmmcall ) X ( vmload ) X ( vmsave ) \
+	X ( stgi ) X ( clgi ) X ( skinit ) X ( invlpga ) X ( monitorx ) X ( mwaitx ) X ( clzero ) X ( rdpru ) X ( invlpgb ) X ( tlbsync ) X ( serialize ) X ( xsusldtrk ) \
+	X ( xresldtrk ) X ( uiret ) X ( testui ) X ( clui ) X ( stui ) X ( rmpquery ) X ( rmpadjust ) X ( rmpupdate ) X ( psmash ) X ( pvalidate ) X ( tdcall ) X ( seamret ) \
+	X ( seamops ) X ( seamcall ) X ( loadiwkey ) X ( encodekey128 ) X ( encodekey256 ) X ( aesenc128kl ) X ( aesdec128kl ) X ( aesenc256kl ) X ( aesdec256kl ) X ( aesencwide128kl ) X ( aesdecwide128kl ) X ( aesencwide256kl ) \
+	X ( aesdecwide256kl ) X ( uwrmsr ) X ( urdmsr ) X ( lkgs ) X ( tpause ) X ( umwait ) X ( umonitor ) X ( ptwrite ) X ( invept ) X ( invvpid ) X ( aadd ) X ( aand ) \
+	X ( aor ) X ( axor ) X ( vmptrld ) X ( vmptrst ) X ( vmclear ) X ( vmxon ) X ( wbnoinvd ) X ( prefetchwt1 ) X ( prefetchit0 ) X ( prefetchit1 ) X ( cldemote ) X ( extrq ) \
+	X ( insertq ) X ( retfq ) X ( sysretq ) X ( sysexitq ) X ( fxsave64 ) X ( fxrstor64 ) X ( xsave64 ) X ( xrstor64 ) X ( xsaveopt64 ) X ( xsavec64 ) X ( xsaves64 ) X ( xrstors64 ) \
+	X ( movntss ) X ( movntsd ) X ( senduipi ) X ( erets ) X ( eretu ) \
+	X ( vcvtqq2ps ) X ( vprord ) X ( vprorq ) X ( vprold ) X ( vprolq ) X ( vpsraq ) X ( vcvttps2udq ) X ( vcvttpd2udq ) \
+	X ( vcvttps2uqq ) X ( vcvttpd2uqq ) X ( vcvttss2usi ) X ( vcvttsd2usi ) X ( vcvtps2udq ) X ( vcvtpd2udq ) X ( vcvtps2uqq ) X ( vcvtpd2uqq ) \
+	X ( vcvtss2usi ) X ( vcvtsd2usi ) X ( vcvttps2qq ) X ( vcvttpd2qq ) X ( vcvtudq2pd ) X ( vcvtuqq2pd ) X ( vcvtudq2ps ) X ( vcvtuqq2ps ) \
+	X ( vcvtps2qq ) X ( vcvtpd2qq ) X ( vcvtusi2ss ) X ( vcvtusi2sd ) X ( vcvtqq2pd ) X ( vpsrlvw ) X ( vpmovuswb ) X ( vpsravw ) \
+	X ( vpmovusdb ) X ( vpsllvw ) X ( vpmovusqb ) X ( vpmovusdw ) X ( vprorvd ) X ( vprorvq ) X ( vpmovusqw ) X ( vprolvd ) \
+	X ( vprolvq ) X ( vpmovusqd ) X ( vbroadcastf32x2 ) X ( vbroadcastf32x4 ) X ( vbroadcastf64x2 ) X ( vbroadcastf32x8 ) X ( vbroadcastf64x4 ) X ( vpabsq ) \
+	X ( vpmovswb ) X ( vpmovsdb ) X ( vpmovsqb ) X ( vpmovsdw ) X ( vpmovsqw ) X ( vpmovsqd ) X ( vpmovm2b ) X ( vpmovm2w ) \
+	X ( vpmovb2m ) X ( vpmovw2m ) X ( vpbroadcastmb2q ) X ( vscalefps ) X ( vscalefpd ) X ( vscalefss ) X ( vscalefsd ) X ( vpmovwb ) \
+	X ( vpmovdb ) X ( vpmovqb ) X ( vpmovdw ) X ( vpmovqw ) X ( vpmovqd ) X ( vpmovm2d ) X ( vpmovm2q ) X ( vpminsq ) \
+	X ( vpmovd2m ) X ( vpmovq2m ) X ( vpbroadcastmw2d ) X ( vpminuq ) X ( vpmaxsq ) X ( vpmaxuq ) X ( vpmullq ) X ( vgetexpps ) \
+	X ( vgetexppd ) X ( vgetexpss ) X ( vgetexpsd ) X ( vplzcntd ) X ( vplzcntq ) X ( vpsravq ) X ( vrcp14ps ) X ( vrcp14pd ) \
+	X ( vrcp14ss ) X ( vrcp14sd ) X ( vrsqrt14ps ) X ( vrsqrt14pd ) X ( vrsqrt14ss ) X ( vrsqrt14sd ) X ( vpdpbusd ) X ( vpdpbusds ) \
+	X ( vpdpwssd ) X ( vdpbf16ps ) X ( vp4dpwssd ) X ( vpdpwssds ) X ( vp4dpwssds ) X ( vpopcntb ) X ( vpopcntw ) X ( vpopcntd ) \
+	X ( vpopcntq ) X ( vbroadcasti32x2 ) X ( vbroadcasti32x4 ) X ( vbroadcasti64x2 ) X ( vbroadcasti32x8 ) X ( vbroadcasti64x4 ) X ( vpexpandb ) X ( vpexpandw ) \
+	X ( vpcompressb ) X ( vpcompressw ) X ( vpblendmd ) X ( vpblendmq ) X ( vblendmps ) X ( vblendmpd ) X ( vpblendmb ) X ( vpblendmw ) \
+	X ( vp2intersectd ) X ( vp2intersectq ) X ( vpshldvw ) X ( vpshldvd ) X ( vpshldvq ) X ( vpshrdvw ) X ( vcvtneps2bf16 ) X ( vcvtne2ps2bf16 ) \
+	X ( vpshrdvd ) X ( vpshrdvq ) X ( vpermi2b ) X ( vpermi2w ) X ( vpermi2d ) X ( vpermi2q ) X ( vpermi2ps ) X ( vpermi2pd ) \
+	X ( vpermt2b ) X ( vpermt2w ) X ( vpermt2d ) X ( vpermt2q ) X ( vpermt2ps ) X ( vpermt2pd ) X ( vpmultishiftqb ) X ( vexpandps ) \
+	X ( vexpandpd ) X ( vpexpandd ) X ( vpexpandq ) X ( vcompressps ) X ( vcompresspd ) X ( vpcompressd ) X ( vpcompressq ) X ( vpermb ) \
+	X ( vpermw ) X ( vpshufbitqmb ) X ( vpgatherdd ) X ( vpgatherdq ) X ( vpgatherqd ) X ( vpgatherqq ) X ( vgatherdps ) X ( vgatherdpd ) \
+	X ( vgatherqps ) X ( vgatherqpd ) X ( v4fmaddps ) X ( v4fmaddss ) X ( vpscatterdd ) X ( vpscatterdq ) X ( vpscatterqd ) X ( vpscatterqq ) \
+	X ( vscatterdps ) X ( vscatterdpd ) X ( vscatterqps ) X ( vscatterqpd ) X ( v4fnmaddps ) X ( v4fnmaddss ) X ( vpmadd52luq ) X ( vpmadd52huq ) \
+	X ( vpconflictd ) X ( vpconflictq ) X ( vexp2ps ) X ( vexp2pd ) X ( vrcp28ps ) X ( vrcp28pd ) X ( vrcp28ss ) X ( vrcp28sd ) \
+	X ( vrsqrt28ps ) X ( vrsqrt28pd ) X ( vrsqrt28ss ) X ( vrsqrt28sd ) X ( vgf2p8mulb ) X ( valignd ) X ( valignq ) X ( vrndscaleph ) \
+	X ( vrndscaleps ) X ( vrndscalepd ) X ( vrndscalesh ) X ( vrndscaless ) X ( vrndscalesd ) X ( vinsertf32x4 ) X ( vinsertf64x2 ) X ( vextractf32x4 ) \
+	X ( vextractf64x2 ) X ( vinsertf32x8 ) X ( vinsertf64x4 ) X ( vextractf32x8 ) X ( vextractf64x4 ) X ( vshuff32x4 ) X ( vshuff64x2 ) X ( vgetmantph ) \
+	X ( vgetmantps ) X ( vgetmantpd ) X ( vgetmantsh ) X ( vgetmantss ) X ( vgetmantsd ) X ( vinserti32x4 ) X ( vinserti64x2 ) X ( vextracti32x4 ) \
+	X ( vextracti64x2 ) X ( vinserti32x8 ) X ( vinserti64x4 ) X ( vextracti32x8 ) X ( vextracti64x4 ) X ( vdbpsadbw ) X ( vshufi32x4 ) X ( vshufi64x2 ) \
+	X ( vrangeps ) X ( vrangepd ) X ( vrangess ) X ( vrangesd ) X ( vfixupimmps ) X ( vfixupimmpd ) X ( vfixupimmss ) X ( vfixupimmsd ) \
+	X ( vreduceph ) X ( vreduceps ) X ( vreducepd ) X ( vreducesh ) X ( vreducess ) X ( vreducesd ) X ( vfpclassph ) X ( vfpclassps ) \
+	X ( vfpclasspd ) X ( vfpclasssh ) X ( vfpclassss ) X ( vfpclasssd ) X ( vpshldw ) X ( vpshldd ) X ( vpshldq ) X ( vpshrdw ) \
+	X ( vpshrdd ) X ( vpshrdq ) X ( vcmpph ) X ( vcmpsh ) X ( vgf2p8affineqb ) X ( vgf2p8affineinvqb ) X ( vmovsh ) X ( vcvtss2sh ) \
+	X ( vcvtps2phx ) X ( vcvtsi2sh ) X ( vcvttsh2si ) X ( vcvtsh2si ) X ( vucomish ) X ( vcomish ) X ( vsqrtph ) X ( vsqrtsh ) \
+	X ( vaddph ) X ( vaddsh ) X ( vmulph ) X ( vmulsh ) X ( vcvtph2pd ) X ( vcvtpd2ph ) X ( vcvtsh2sd ) X ( vcvtsd2sh ) \
+	X ( vcvtdq2ph ) X ( vcvtqq2ph ) X ( vcvtph2dq ) X ( vcvttph2dq ) X ( vsubph ) X ( vsubsh ) X ( vminph ) X ( vminsh ) \
+	X ( vdivph ) X ( vdivsh ) X ( vmaxph ) X ( vmaxsh ) X ( vmovw ) X ( vcvttph2udq ) X ( vcvttph2uqq ) X ( vcvttsh2usi ) \
+	X ( vcvtph2udq ) X ( vcvtph2uqq ) X ( vcvtsh2usi ) X ( vcvttph2qq ) X ( vcvtudq2ph ) X ( vcvtuqq2ph ) X ( vcvtph2qq ) X ( vcvtusi2sh ) \
+	X ( vcvttph2uw ) X ( vcvttph2w ) X ( vcvtph2uw ) X ( vcvtph2w ) X ( vcvtw2ph ) X ( vcvtuw2ph ) X ( vcvtsh2ss ) X ( vcvtph2psx ) \
+	X ( vscalefph ) X ( vscalefsh ) X ( vgetexpph ) X ( vgetexpsh ) X ( vrcpph ) X ( vrcpsh ) X ( vrsqrtph ) X ( vrsqrtsh ) \
+	X ( vfmaddcph ) X ( vfcmaddcph ) X ( vfmaddcsh ) X ( vfcmaddcsh ) X ( vfmaddsub132ph ) X ( vfmsubadd132ph ) X ( vfmadd132ph ) X ( vfmadd132sh ) \
+	X ( vfmsub132ph ) X ( vfmsub132sh ) X ( vfnmadd132ph ) X ( vfnmadd132sh ) X ( vfnmsub132ph ) X ( vfnmsub132sh ) X ( vfmaddsub213ph ) X ( vfmsubadd213ph ) \
+	X ( vfmadd213ph ) X ( vfmadd213sh ) X ( vfmsub213ph ) X ( vfmsub213sh ) X ( vfnmadd213ph ) X ( vfnmadd213sh ) X ( vfnmsub213ph ) X ( vfnmsub213sh ) \
+	X ( vfmaddsub231ph ) X ( vfmsubadd231ph ) X ( vfmadd231ph ) X ( vfmadd231sh ) X ( vfmsub231ph ) X ( vfmsub231sh ) X ( vfnmadd231ph ) X ( vfnmadd231sh ) \
+	X ( vfnmsub231ph ) X ( vfnmsub231sh ) X ( vfmulcph ) X ( vfcmulcph ) X ( vfmulcsh ) X ( vfcmulcsh ) \
+	X ( ldtilecfg ) X ( sttilecfg ) X ( vldmxcsr ) X ( vstmxcsr ) X ( tilerelease ) X ( tilezero ) X ( tileloaddt1 ) X ( tilestored ) \
+	X ( tileloadd ) X ( vpdpbuud ) X ( vpdpbsud ) X ( vpdpbssd ) X ( vpdpbuuds ) X ( vpdpbsuds ) X ( vpdpbssds ) X ( tdpbf16ps ) \
+	X ( tdpfp16ps ) X ( tdpbuud ) X ( tdpbusd ) X ( tdpbsud ) X ( tdpbssd ) X ( tcmmrlfp16ps ) X ( tcmmimfp16ps ) X ( vcvtneoph2ps ) \
+	X ( vcvtneeph2ps ) X ( vcvtneebf162ps ) X ( vcvtneobf162ps ) X ( vbcstnesh2ps ) X ( vbcstnebf162ps ) X ( vsha512rnds2 ) X ( vsha512msg1 ) X ( vsha512msg2 ) \
+	X ( vpdpwuud ) X ( vpdpwusd ) X ( vpdpwsud ) X ( vpdpwuuds ) X ( vpdpwusds ) X ( vpdpwsuds ) X ( vsm3msg1 ) X ( vsm3msg2 ) \
+	X ( vsm4key4 ) X ( vsm4rnds4 ) X ( cmpoxadd ) X ( cmpnoxadd ) X ( cmpbxadd ) X ( cmpnbxadd ) X ( cmpzxadd ) X ( cmpnzxadd ) \
+	X ( cmpbexadd ) X ( cmpnbexadd ) X ( cmpsxadd ) X ( cmpnsxadd ) X ( cmppxadd ) X ( cmpnpxadd ) X ( cmplxadd ) X ( cmpnlxadd ) \
+	X ( cmplexadd ) X ( cmpnlexadd ) X ( kshiftrb ) X ( kshiftrw ) X ( kshiftrd ) X ( kshiftrq ) X ( kshiftlb ) X ( kshiftlw ) \
+	X ( kshiftld ) X ( kshiftlq ) X ( vpermil2ps ) X ( vpermil2pd ) X ( vfmaddsubps ) X ( vfmaddsubpd ) X ( vfmsubaddps ) X ( vfmsubaddpd ) \
+	X ( vfmaddps ) X ( vfmaddpd ) X ( vfmaddss ) X ( vfmaddsd ) X ( vfmsubps ) X ( vfmsubpd ) X ( vfmsubss ) X ( vfmsubsd ) \
+	X ( vfnmaddps ) X ( vfnmaddpd ) X ( vfnmaddss ) X ( vfnmaddsd ) X ( vfnmsubps ) X ( vfnmsubpd ) X ( vfnmsubss ) X ( vfnmsubsd ) \
+	X ( vsm3rnds2 )

@@ -710,7 +710,6 @@ namespace ui {
 		status_area = math::rect ( 0.0f, bottom, w, 24.0f );
 		approach ( welcome_show, has ? 0.0f : 1.0f, 12.0f );
 		spring ( browser_show, browser_velocity, browser_open && has ? 1.0f : 0.0f, 320.0f, 34.0f );
-		spring ( inspector_show, inspector_velocity, inspector_open && has ? 1.0f : 0.0f, 320.0f, 34.0f );
 		spring ( output_show, output_velocity, output_open && has ? 1.0f : 0.0f, 320.0f, 34.0f );
 
 		float file_show = 1.0f - welcome_show;
@@ -722,11 +721,11 @@ namespace ui {
 		dock_size [ 1 ] = base::clamp ( dock_size [ 1 ], 200.0f, base::max ( w * 0.45f, 200.0f ) );
 		dock_size [ 2 ] = base::clamp ( dock_size [ 2 ], 90.0f, base::max ( tall * 0.6f, 90.0f ) );
 
-		float shows [ 3 ] = { has ? math::saturate ( browser_show ) : 0.0f, has ? math::saturate ( inspector_show ) : 0.0f, has ? math::saturate ( output_show ) : 0.0f };
+		float shows [ 2 ] = { has ? math::saturate ( browser_show ) : 0.0f, has ? math::saturate ( output_show ) : 0.0f };
 		float side_show [ 3 ] = { 0.0f, 0.0f, 0.0f };
 		float side_fit [ 3 ] = { dock_size [ 0 ], dock_size [ 1 ], dock_size [ 2 ] };
 
-		for ( int32_t p = 0; p < 3; p++ )
+		for ( int32_t p = 0; p < 2; p++ )
 			side_show [ static_cast < int32_t > ( docks [ p ] ) ] = base::max ( side_show [ static_cast < int32_t > ( docks [ p ] ) ], shows [ p ] );
 
 		float excess = ( side_show [ 0 ] > 0.0f ? side_fit [ 0 ] : 0.0f ) + ( side_show [ 1 ] > 0.0f ? side_fit [ 1 ] : 0.0f ) + 420.0f - ( w - rail );
@@ -763,7 +762,7 @@ namespace ui {
 		for ( int32_t s = 0; s < 3; s++ )
 			dock_shows [ s ] = side_show [ s ];
 
-		math::rect* targets [ 3 ] = { &browser_area, &inspector_area, &output_area };
+		math::rect* targets [ 2 ] = { &browser_area, &output_area };
 
 		for ( int32_t s = 0; s < 3; s++ ) {
 
@@ -771,14 +770,14 @@ namespace ui {
 			float at = 0.0f;
 			const math::rect& side = dock_areas [ s ];
 
-			for ( int32_t p = 0; p < 3; p++ ) {
+			for ( int32_t p = 0; p < 2; p++ ) {
 
 				if ( static_cast < int32_t > ( docks [ p ] ) == s )
 					weight += shows [ p ];
 
 			}
 
-			for ( int32_t p = 0; p < 3; p++ ) {
+			for ( int32_t p = 0; p < 2; p++ ) {
 
 				if ( static_cast < int32_t > ( docks [ p ] ) != s )
 					continue;
@@ -805,7 +804,6 @@ namespace ui {
 		}
 
 		browser_fit = docks [ 0 ] == dock_side::BOTTOM ? browser_area.w : side_fit [ static_cast < int32_t > ( docks [ 0 ] ) ];
-		inspector_fit = docks [ 1 ] == dock_side::BOTTOM ? inspector_area.w : side_fit [ static_cast < int32_t > ( docks [ 1 ] ) ];
 
 		float strip = has ? 34.0f : 0.0f;
 
@@ -833,7 +831,6 @@ namespace ui {
 		};
 
 		browser_area = snap ( browser_area );
-		inspector_area = snap ( inspector_area );
 		center_area = snap ( center_area );
 
 		for ( int32_t s = 0; s < 3; s++ )
@@ -885,7 +882,6 @@ namespace ui {
 			dock_handles ( );
 			draw_output ( );
 			draw_browser ( );
-			draw_inspector ( );
 			draw_docks ( );
 			draw_rail ( );
 			canvas.pop ( );

@@ -61,6 +61,7 @@ namespace ui {
 		STRUCTS,
 		REFERENCES,
 		SEARCH,
+		INSPECTOR,
 		COUNT,
 
 	};
@@ -638,6 +639,10 @@ namespace ui {
 
 		void serialize_project ( base::list < char >& out ) const;
 
+		void project_beside ( base::writer& out ) const;
+
+		bool project_ours ( const wchar_t* path ) const;
+
 		void apply_project ( const char* data );
 
 		void remember_undo ( );
@@ -724,6 +729,7 @@ namespace ui {
 		float dt = 0.0f;
 		bool fixed_step = false;
 		bool persist = true;
+		bool settings_frozen = false;
 		bool maximized = false;
 		bool focused = true;
 		bool animating = false;
@@ -789,12 +795,11 @@ namespace ui {
 		math::rect status_area;
 		math::rect rail_area;
 		math::rect browser_area;
-		math::rect inspector_area;
 		math::rect output_area;
 		math::rect center_area;
 		math::rect view_area;
 
-		dock_side docks [ 3 ] = { dock_side::LEFT, dock_side::RIGHT, dock_side::BOTTOM };
+		dock_side docks [ 2 ] = { dock_side::LEFT, dock_side::BOTTOM };
 		float dock_size [ 3 ] = { 288.0f, 300.0f, 190.0f };
 		math::rect dock_areas [ 3 ];
 		float dock_shows [ 3 ] = { };
@@ -803,14 +808,10 @@ namespace ui {
 		bool dock_moving = false;
 		math::vec2 dock_from;
 		float browser_fit = 288.0f;
-		float inspector_fit = 300.0f;
 		bool browser_open = true;
-		bool inspector_open = true;
 		bool output_open = true;
 		float browser_show = 1.0f;
 		float browser_velocity = 0.0f;
-		float inspector_show = 1.0f;
-		float inspector_velocity = 0.0f;
 		float output_show = 1.0f;
 		float output_velocity = 0.0f;
 		int32_t dragging_split = 0;
@@ -879,7 +880,7 @@ namespace ui {
 		uint32_t filter_seen [ static_cast < int32_t > ( panel::COUNT ) ] = { };
 		base::list < int32_t > shown [ static_cast < int32_t > ( panel::COUNT ) ];
 		scroller browser_scroll [ static_cast < int32_t > ( panel::COUNT ) ];
-		int32_t browser_pick [ static_cast < int32_t > ( panel::COUNT ) ] = { -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+		int32_t browser_pick [ static_cast < int32_t > ( panel::COUNT ) ] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 		int32_t expanded_struct = -1;
 		int32_t prompt_struct = -1;
 		int32_t prompt_offset = 0;
@@ -1098,7 +1099,7 @@ namespace ui {
 
 		void draw_calls ( math::rect area );
 
-		void draw_inspector ( );
+		void draw_inspector ( math::rect area, float inner );
 
 		void draw_output ( );
 

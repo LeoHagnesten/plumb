@@ -189,6 +189,8 @@ namespace decompiler {
 
 		int32_t make ( op kind, uint8_t size, int32_t a = -1, int32_t b = -1, int64_t value = 0, uint8_t bits = 0 );
 
+		void deepen ( int32_t e );
+
 		int32_t constant ( int64_t value, uint8_t size );
 
 		int32_t binary ( op kind, int32_t a, int32_t b, uint8_t size, uint8_t bits = 0 );
