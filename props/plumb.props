@@ -13,9 +13,13 @@
   </PropertyGroup>
 
   <ItemDefinitionGroup>
-    <PreBuildEvent>
-      <Command>powershell -NoProfile -ExecutionPolicy Bypass -File "$(plumb_root)tools\shaders.ps1" -output "$(IntDir)shaders"</Command>
-    </PreBuildEvent>
+    <FxCompile>
+      <ShaderModel>5.0</ShaderModel>
+      <DisableOptimizations>false</DisableOptimizations>
+      <EnableDebuggingInformation>false</EnableDebuggingInformation>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <AdditionalOptions>/O3 %(AdditionalOptions)</AdditionalOptions>
+    </FxCompile>
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <ConformanceMode>true</ConformanceMode>

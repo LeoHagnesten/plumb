@@ -54,5 +54,8 @@ namespace icons {
 	constexpr uint32_t TAG = 0xE8EC;
 	constexpr uint32_t PUZZLE = 0xEA86;
 	constexpr uint32_t BRANCH = 0xE8CB;
+	constexpr uint32_t LINK = 0xE71B;
+	constexpr uint32_t PIN = 0xE718;
+	constexpr uint32_t PENCIL = 0xE70F;
 
 }

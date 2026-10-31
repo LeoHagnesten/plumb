@@ -2,7 +2,7 @@
 
 #include "base/base.hh"
 
-namespace image {
+namespace loader {
 
 	enum class format : int32_t {
 

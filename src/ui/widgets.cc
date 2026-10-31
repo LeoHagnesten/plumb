@@ -93,6 +93,47 @@ namespace ui {
 
 	}
 
+	void app::draw_side_scrollbar ( uint64_t id, math::rect track, scroller& item, float content, float page ) {
+
+		if ( content <= page + 0.5f || track.w < 20.0f )
+			return;
+
+		render::canvas& c = canvas;
+		widget& bar = state ( id );
+		float ratio = base::clamp ( page / content, 0.04f, 1.0f );
+		float thumb_w = base::max ( track.w * ratio, 24.0f );
+		float limit = base::max ( content - page, 1.0f );
+		float travel = track.w - thumb_w;
+		float thumb_x = track.x + travel * base::clamp ( item.offset / limit, 0.0f, 1.0f );
+
+		interact ( id, track, bar );
+
+		bool dragging = active_id == id && mouse_down;
+
+		if ( dragging ) {
+
+			if ( press_event )
+				bar.value = mouse.x - thumb_x;
+
+			float place = base::clamp ( ( mouse.x - bar.value - track.x ) / base::max ( travel, 1.0f ), 0.0f, 1.0f );
+
+			item.target = place * limit;
+			item.offset = item.target;
+			item.velocity = 0.0f;
+
+		} else if ( clicked_id == id && !( mouse.x >= thumb_x && mouse.x < thumb_x + thumb_w ) ) {
+
+			item.target += mouse.x < thumb_x ? -page : page;
+
+		}
+
+		float tall = 4.0f + 3.0f * base::max ( bar.hover, dragging ? 1.0f : 0.0f );
+		render::color tint = ink ( tone::INK_FAINT ).fade ( 0.45f + 0.35f * base::max ( bar.hover, dragging ? 1.0f : 0.0f ) );
+
+		c.fill ( math::rect ( thumb_x + 2.0f, track.bottom ( ) - tall - 3.0f, thumb_w - 4.0f, tall ), tall * 0.5f, tint );
+
+	}
+
 	bool app::splitter ( uint64_t id, math::rect area, bool vertical ) {
 
 		widget& item = state ( id );

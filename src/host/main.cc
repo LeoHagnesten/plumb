@@ -508,6 +508,15 @@ static LRESULT __stdcall procedure ( HWND window, UINT message, WPARAM wide, LPA
 			program->mouse_button ( 1, true );
 			return 0;
 
+		case WM_MBUTTONDOWN:
+			program->mouse_button ( 2, true );
+			return 0;
+
+		case WM_APP + 1:
+			program->analysis_finished ( );
+			schedule_frame ( );
+			return 0;
+
 		case WM_XBUTTONDOWN:
 			program->mouse_button ( GET_XBUTTON_WPARAM ( wide ) == XBUTTON1 ? 3 : 4, true );
 			return TRUE;

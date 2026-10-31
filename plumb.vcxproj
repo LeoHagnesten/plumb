@@ -18,6 +18,7 @@
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -25,56 +26,84 @@
     <RootNamespace>plumb</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>ClangCL</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
   <ImportGroup Label="PropertySheets">
     <Import Project="props\plumb.props" />
   </ImportGroup>
+
   <PropertyGroup>
     <TargetName>Plumb</TargetName>
   </PropertyGroup>
+
   <ItemGroup>
-    <ClCompile Include="src\runtime\startup.cc" />
-    <ClCompile Include="src\runtime\memory.cc" />
-    <ClCompile Include="src\runtime\rounding.cc" />
-    <ClCompile Include="src\base\base.cc" />
-    <ClCompile Include="src\base\math.cc" />
-    <ClCompile Include="src\base\files.cc" />
-    <ClCompile Include="src\render\device.cc" />
-    <ClCompile Include="src\render\canvas.cc" />
-    <ClCompile Include="src\image\image.cc" />
-    <ClCompile Include="src\ui\app.cc" />
-    <ClCompile Include="src\ui\widgets.cc" />
-    <ClCompile Include="src\ui\chrome.cc" />
-    <ClCompile Include="src\ui\browser.cc" />
-    <ClCompile Include="src\ui\views.cc" />
-    <ClCompile Include="src\ui\inspector.cc" />
-    <ClCompile Include="src\debug.cc" />
-    <ClCompile Include="src\main.cc" />
+    <ClCompile Include="src\**\*.cc" />
   </ItemGroup>
+
   <ItemGroup>
-    <ClInclude Include="src\runtime\runtime.hh" />
-    <ClInclude Include="src\base\base.hh" />
-    <ClInclude Include="src\base\math.hh" />
-    <ClInclude Include="src\base\files.hh" />
-    <ClInclude Include="src\render\render.hh" />
-    <ClInclude Include="src\image\image.hh" />
-    <ClInclude Include="src\ui\app.hh" />
-    <ClInclude Include="src\ui\icons.hh" />
+    <ClInclude Include="src\**\*.hh" />
   </ItemGroup>
+
   <ItemGroup>
-    <None Include="src\shaders\ui.hlsl" />
-    <None Include="src\shaders\post.hlsl" />
     <None Include="assets\plumb.manifest" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="src\render\shaders\*.hlsli" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FxCompile Include="src\render\shaders\ui_vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <ShaderModel>5.0</ShaderModel>
+      <EntryPointName>vs_main</EntryPointName>
+      <ObjectFileOutput>$(IntDir)shaders\ui_vs.cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="src\render\shaders\ui_ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <ShaderModel>5.0</ShaderModel>
+      <EntryPointName>ps_main</EntryPointName>
+      <ObjectFileOutput>$(IntDir)shaders\ui_ps.cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="src\render\shaders\full_vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <ShaderModel>5.0</ShaderModel>
+      <EntryPointName>vs_full</EntryPointName>
+      <ObjectFileOutput>$(IntDir)shaders\full_vs.cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="src\render\shaders\down_ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <ShaderModel>5.0</ShaderModel>
+      <EntryPointName>ps_down</EntryPointName>
+      <ObjectFileOutput>$(IntDir)shaders\down_ps.cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="src\render\shaders\up_ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <ShaderModel>5.0</ShaderModel>
+      <EntryPointName>ps_up</EntryPointName>
+      <ObjectFileOutput>$(IntDir)shaders\up_ps.cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="src\render\shaders\cover_ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <ShaderModel>5.0</ShaderModel>
+      <EntryPointName>ps_cover</EntryPointName>
+      <ObjectFileOutput>$(IntDir)shaders\cover_ps.cso</ObjectFileOutput>
+    </FxCompile>
+  </ItemGroup>
+
   <ItemGroup>
     <ResourceCompile Include="assets\plumb.rc" />
   </ItemGroup>
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
