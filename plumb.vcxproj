@@ -88,7 +88,9 @@
     <ClCompile Include="src\ui\tools.cc" />
     <ClCompile Include="src\ui\views\calls.cc" />
     <ClCompile Include="src\ui\views\disassembly.cc" />
-    <ClCompile Include="src\ui\views\graph.cc" />
+    <ClCompile Include="src\ui\views\graph.cc">
+      <ObjectFileName>$(IntDir)views\</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="src\ui\views\headers.cc" />
     <ClCompile Include="src\ui\views\hex.cc" />
     <ClCompile Include="src\ui\views\pseudocode.cc" />

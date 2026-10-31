@@ -36,7 +36,6 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <FloatingPointModel>Fast</FloatingPointModel>
-      <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/Zc:threadSafeInit- /clang:-ffreestanding /clang:-fno-math-errno /clang:-mno-stack-arg-probe /clang:-Wno-unused-parameter /clang:-Wno-missing-braces %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ResourceCompile>
