@@ -2830,6 +2830,18 @@ namespace decompiler {
 		if ( !direct )
 			return -1;
 
+		const wchar_t* declared = b.names->prototype ( direct );
+
+		if ( declared ) {
+
+			c_prototype shape;
+			base::writer problem;
+
+			if ( parse_prototype ( declared, b.long_mode, shape, problem ) )
+				return shape.count;
+
+		}
+
 		wchar_t name [ 200 ];
 
 		if ( b.names->name ( direct, true, name, 200 ) ) {

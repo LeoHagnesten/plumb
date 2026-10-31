@@ -45,10 +45,12 @@ namespace ui {
 		{ L"Toggle browser", L"Ctrl+B" },
 		{ L"Toggle inspector", L"Ctrl+I" },
 		{ L"Toggle output", L"Ctrl+J" },
+		{ L"Reset window layout", L"" },
 		{ L"Switch light or dark theme", L"Ctrl+Shift+L" },
 		{ L"Follow reference", L"Enter" },
 		{ L"Rename", L"N" },
 		{ L"Comment", L";" },
+		{ L"Set type or prototype", L"Y" },
 		{ L"Toggle bookmark", L"Ctrl+D" },
 		{ L"Number as hex or decimal", L"H" },
 		{ L"Number as character", L"R" },
@@ -58,6 +60,14 @@ namespace ui {
 		{ L"Make signature", L"Ctrl+Alt+S" },
 		{ L"Find signature or bytes", L"Ctrl+Alt+F" },
 		{ L"Copy function as C", L"Ctrl+Shift+C" },
+		{ L"Show opcode bytes", L"" },
+		{ L"Spaces inside parentheses in C", L"" },
+		{ L"Start or continue", L"F9" },
+		{ L"Step into", L"F7" },
+		{ L"Step over", L"F8" },
+		{ L"Pause", L"F12" },
+		{ L"Stop debugging", L"Ctrl+F2" },
+		{ L"Toggle breakpoint", L"F2" },
 		{ L"Keyboard shortcuts", L"F1" },
 		{ L"About Plumb", L"" }
 	};
@@ -106,6 +116,18 @@ namespace ui {
 			case command::MAKE_SIGNATURE:
 				return analyzed && db->is_covered ( now->cursor_address );
 
+			case command::SET_TYPE:
+				return analyzed;
+
+			case command::DEBUG_PAUSE:
+				return debug_state.state == debugger::status::RUNNING;
+
+			case command::DEBUG_STOP:
+				return debugger::active ( );
+
+			case command::DEBUG_BREAKPOINT:
+				return analyzed && db->is_start ( now->cursor_address );
+
 			case command::NUMBER_RADIX:
 			case command::NUMBER_CHAR:
 			case command::NUMBER_BINARY:
@@ -145,6 +167,15 @@ namespace ui {
 
 			case command::THEME:
 				return light;
+
+			case command::TOGGLE_BYTES:
+				return show_bytes;
+
+			case command::TOGGLE_SPACING:
+				return c_spaced;
+
+			case command::DEBUG_BREAKPOINT:
+				return is_breakpoint ( now->cursor_address );
 
 			default:
 				return false;
@@ -187,29 +218,13 @@ namespace ui {
 
 				base::writer line;
 
-				if ( showing == view::LISTING && now->ranged && now->select_anchor != now->cursor_row ) {
+				if ( showing == view::LISTING && total_rows ) {
 
-					uint64_t low = base::min ( now->select_anchor, now->cursor_row );
-					uint64_t high = base::min ( base::max ( now->select_anchor, now->cursor_row ), low + 20000 );
 					base::list < wchar_t > text;
+					bool ranged = listing_selection ( text );
 
-					for ( uint64_t row = low; row <= high; row++ ) {
-
-						base::writer piece;
-
-						row_text ( row, piece );
-
-						for ( int32_t i = 0; i < piece.size ( ); i++ )
-							text.push ( piece.text ( ) [ i ] );
-
-						text.push ( L'\r' );
-						text.push ( L'\n' );
-
-					}
-
-					text.push ( 0 );
 					copy_text ( text.data ( ) );
-					log ( log_kind::INFO, base::writer ( ).add ( L"Copied " ).grouped ( high - low + 1 ).add ( L" lines." ).text ( ) );
+					log ( log_kind::INFO, ranged ? L"Copied the selection." : L"Copied the line." );
 
 					break;
 
@@ -217,45 +232,14 @@ namespace ui {
 
 				if ( showing == view::PSEUDOCODE ) {
 
-					const decompiler::result* code = pseudocode_for ( now->function );
+					base::list < wchar_t > text;
+					bool ranged = code_selection ( text );
 
-					if ( !code || code->lines.empty ( ) )
+					if ( text.empty ( ) )
 						break;
 
-					int32_t low = base::clamp ( base::min ( now->code_anchor, now->code_line ), 0, code->lines.count ( ) - 1 );
-					int32_t high = base::clamp ( base::max ( now->code_anchor, now->code_line ), 0, code->lines.count ( ) - 1 );
-					int32_t base_indent = 1000;
-					base::list < wchar_t > text;
-
-					for ( int32_t i = low; i <= high; i++ )
-						base_indent = base::min ( base_indent, code->lines [ static_cast < size_t > ( i ) ].indent );
-
-					for ( int32_t i = low; i <= high; i++ ) {
-
-						const decompiler::line& item = code->lines [ static_cast < size_t > ( i ) ];
-
-						for ( int32_t k = base_indent; k < item.indent; k++ ) {
-
-							for ( int32_t s = 0; s < 4; s++ )
-								text.push ( L' ' );
-
-						}
-
-						for ( int32_t k = 0; k < item.length; k++ )
-							text.push ( code->text [ static_cast < size_t > ( item.text + k ) ] );
-
-						if ( i < high ) {
-
-							text.push ( L'\r' );
-							text.push ( L'\n' );
-
-						}
-
-					}
-
-					text.push ( 0 );
 					copy_text ( text.data ( ) );
-					log ( log_kind::INFO, base::writer ( ).add ( L"Copied " ).number ( high - low + 1 ).add ( high == low ? L" line of C." : L" lines of C." ).text ( ) );
+					log ( log_kind::INFO, ranged ? L"Copied the selection." : L"Copied the line of C." );
 
 					break;
 
@@ -524,10 +508,93 @@ namespace ui {
 				browsing = static_cast < panel > ( static_cast < int32_t > ( action ) - static_cast < int32_t > ( command::SHOW_FUNCTIONS ) );
 				browser_open = true;
 
-				if ( browsing == panel::REFERENCES )
+				if ( browsing == panel::REFERENCES ) {
+
+					reference_target = reference_subject ( );
 					references_for = ~0ull;
 
+				}
+
 				break;
+
+			case command::TOGGLE_BYTES:
+				show_bytes = !show_bytes;
+				break;
+
+			case command::TOGGLE_SPACING:
+				c_spaced = !c_spaced;
+				names_revision++;
+				break;
+
+			case command::DEBUG_RUN:
+			case command::DEBUG_STEP_INTO:
+			case command::DEBUG_STEP_OVER: {
+
+				if ( debugger::active ( ) ) {
+
+					if ( debug_state.state != debugger::status::PAUSED )
+						break;
+
+					debugger::send ( action == command::DEBUG_RUN ? debugger::order::CONTINUE : ( action == command::DEBUG_STEP_INTO ? debugger::order::STEP_INTO : debugger::order::STEP_OVER ) );
+
+					break;
+
+				}
+
+				if ( ( file.type != loader::format::PE32 && file.type != loader::format::PE64 ) || file.dll ) {
+
+					log ( log_kind::WARN, L"Only executables can be started. To debug a DLL, open and run the process that loads it." );
+
+					break;
+
+				}
+
+				sync_breakpoints ( );
+
+				if ( debugger::start ( file.path.get ( ), file.entry - file.base, file.wide ( ) ) )
+					log ( log_kind::INFO, base::writer ( ).add ( L"Starting " ).add ( file.name.get ( ) ).add ( L" under the debugger. It stops at the entry point." ).text ( ) );
+
+				break;
+
+			}
+
+			case command::DEBUG_PAUSE:
+				debugger::send ( debugger::order::PAUSE );
+				break;
+
+			case command::DEBUG_STOP:
+				debugger::send ( debugger::order::STOP );
+				log ( log_kind::INFO, L"Stopping the debuggee." );
+				break;
+
+			case command::DEBUG_BREAKPOINT: {
+
+				uint64_t address = now->cursor_address;
+				bool removed = false;
+
+				for ( int32_t i = 0; i < breakpoints.count ( ); i++ ) {
+
+					if ( breakpoints [ static_cast < size_t > ( i ) ] == address ) {
+
+						breakpoints.remove_at ( static_cast < size_t > ( i ) );
+						removed = true;
+
+						break;
+
+					}
+
+				}
+
+				if ( !removed )
+					breakpoints.push ( address );
+
+				sync_breakpoints ( );
+				save_project ( );
+				log ( log_kind::INFO, base::writer ( ).add ( removed ? L"Breakpoint removed at " : L"Breakpoint set at " ).hex ( address ).text ( ) );
+
+				break;
+
+			}
 
 			case command::TOGGLE_BROWSER:
 				browser_open = !browser_open;
@@ -539,6 +606,10 @@ namespace ui {
 
 			case command::TOGGLE_OUTPUT:
 				output_open = !output_open;
+				break;
+
+			case command::RESET_LAYOUT:
+				reset_layout ( );
 				break;
 
 			case command::THEME:
@@ -553,7 +624,28 @@ namespace ui {
 				x86::instruction ins;
 				uint64_t target = 0;
 
-				if ( db->decode ( now->cursor_address, ins ) ) {
+				if ( showing == view::LISTING ) {
+
+					row_line line;
+
+					compose_row ( now->cursor_row, listing_cols, line );
+
+					int32_t hit = line.run_at ( now->caret_col );
+
+					if ( hit < 0 && now->caret_col > 0 )
+						hit = line.run_at ( now->caret_col - 1 );
+
+					if ( hit >= 0 && line.runs [ hit ].target && line.runs [ hit ].target != line.address ) {
+
+						go ( line.runs [ hit ].target, true );
+
+						break;
+
+					}
+
+				}
+
+				if ( db->is_start ( now->cursor_address ) && db->decode ( now->cursor_address, ins ) ) {
 
 					if ( ins.direct ( ) )
 						target = ins.target ( );
@@ -577,10 +669,149 @@ namespace ui {
 
 			}
 
+			case command::SET_TYPE: {
+
+				if ( showing != view::PSEUDOCODE ) {
+
+					log ( log_kind::WARN, L"Types are set from the C view. Press F5 first." );
+
+					break;
+
+				}
+
+				wchar_t key [ 64 ];
+				wchar_t shown [ 64 ];
+
+				if ( code_variable ( key, shown ) ) {
+
+					const local_entry* found = local_for ( now->function, key );
+					const decompiler::result* code = pseudocode_for ( now->function );
+					wchar_t fill [ 128 ] = { };
+
+					if ( found && !found->type.empty ( ) ) {
+
+						int32_t k = 0;
+
+						for ( const wchar_t* at = found->type.get ( ); *at && k < 120; at++ )
+							fill [ k++ ] = *at;
+
+						fill [ k ] = 0;
+
+					} else if ( code ) {
+
+						int32_t name_length = 0;
+
+						while ( shown [ name_length ] )
+							name_length++;
+
+						for ( int32_t i = 0; i < code->lines.count ( ) && !fill [ 0 ]; i++ ) {
+
+							const decompiler::line& item = code->lines [ static_cast < size_t > ( i ) ];
+							const wchar_t* text = code->text.data ( ) + item.text;
+
+							for ( int32_t at = 1; at + name_length <= item.length && !fill [ 0 ]; at++ ) {
+
+								wchar_t after = at + name_length < item.length ? text [ at + name_length ] : 0;
+								bool match = text [ at - 1 ] == L' ' && ( after == L';' || after == L',' || after == L')' );
+
+								for ( int32_t k = 0; match && k < name_length; k++ )
+									match = text [ at + k ] == shown [ k ];
+
+								if ( !match )
+									continue;
+
+								int32_t begin = at - 1;
+
+								while ( begin > 0 && text [ begin - 1 ] != L'(' && text [ begin - 1 ] != L',' )
+									begin--;
+
+								while ( begin < at - 1 && text [ begin ] == L' ' )
+									begin++;
+
+								int32_t k = 0;
+
+								for ( int32_t c = begin; c < at - 1 && k < 120; c++ )
+									fill [ k++ ] = text [ c ];
+
+								fill [ k ] = 0;
+
+							}
+
+						}
+
+					}
+
+					open_code_prompt ( command::SET_TYPE, 2, key, fill );
+
+					break;
+
+				}
+
+				const decompiler::result* code = pseudocode_for ( now->function );
+				wchar_t fill [ 256 ] = { };
+				const wchar_t* declared = prototype_for ( now->function );
+
+				if ( declared ) {
+
+					int32_t k = 0;
+
+					for ( ; declared [ k ] && k < 250; k++ )
+						fill [ k ] = declared [ k ];
+
+					fill [ k ] = 0;
+
+				} else if ( code ) {
+
+					for ( const decompiler::line& item : code->lines ) {
+
+						if ( item.address != now->function || item.indent != 0 )
+							continue;
+
+						int32_t k = 0;
+
+						for ( ; k < item.length && k < 250; k++ )
+							fill [ k ] = code->text [ static_cast < size_t > ( item.text + k ) ];
+
+						fill [ k ] = 0;
+
+						break;
+
+					}
+
+				}
+
+				open_code_prompt ( command::SET_TYPE, 3, L"", fill );
+
+				break;
+
+			}
+
 			case command::RENAME:
 			case command::COMMENT: {
 
 				uint64_t address = now->cursor_address;
+
+				if ( action == command::RENAME && showing == view::PSEUDOCODE ) {
+
+					wchar_t key [ 64 ];
+					wchar_t shown [ 64 ];
+
+					if ( code_variable ( key, shown ) ) {
+
+						open_code_prompt ( command::RENAME, 1, key, shown );
+
+						break;
+
+					}
+
+					uint64_t target = reference_subject ( );
+
+					if ( db && db->function_starting ( target ) >= 0 )
+						address = target;
+					else
+						address = now->function;
+
+				}
 
 				if ( action == command::RENAME && db && analysis_applied ) {
 

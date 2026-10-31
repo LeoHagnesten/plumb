@@ -236,16 +236,16 @@ namespace ui {
 		if ( !db || !analysis_applied || !file.loaded ( ) )
 			return;
 
-		uint64_t subject = now->cursor_address;
+		uint64_t subject = reference_target != ~0ull ? reference_target : now->cursor_address;
 		int32_t first = 0;
 		int32_t count = 0;
 
-		if ( showing == view::PSEUDOCODE )
+		if ( showing == view::PSEUDOCODE && reference_target == ~0ull )
 			subject = now->function;
 
 		db->refs_to ( subject, first, count );
 
-		if ( !count ) {
+		if ( !count && reference_target == ~0ull ) {
 
 			int32_t owner = db->function_at ( subject );
 
@@ -643,9 +643,31 @@ namespace ui {
 
 		}
 
-		const wchar_t* local_name ( uint64_t function, int32_t slot ) override {
+		const wchar_t* local_name ( uint64_t function, const wchar_t* key ) override {
 
-			return nullptr;
+			const local_entry* found = owner->local_for ( function, key );
+
+			return found && !found->name.empty ( ) ? found->name.get ( ) : nullptr;
+
+		}
+
+		const wchar_t* local_type ( uint64_t function, const wchar_t* key ) override {
+
+			const local_entry* found = owner->local_for ( function, key );
+
+			return found && !found->type.empty ( ) ? found->type.get ( ) : nullptr;
+
+		}
+
+		const wchar_t* prototype ( uint64_t function ) override {
+
+			return owner->prototype_for ( function );
+
+		}
+
+		bool spaced ( ) override {
+
+			return owner->c_spaced;
 
 		}
 

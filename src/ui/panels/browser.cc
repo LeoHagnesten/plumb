@@ -195,10 +195,6 @@ namespace ui {
 		c.fill ( math::rect ( x, list.y - 1.0f, inner_w, 1.0f ), 0.0f, ink ( tone::LINE ) );
 		draw_browser_rows ( browsing, list );
 		c.pop_clip ( );
-		c.fill ( math::rect ( area.right ( ) - 1.0f, area.y, 1.0f, area.h ), 0.0f, ink ( tone::LINE ) );
-
-		if ( browser_show > 0.98f && splitter ( make_id ( "split_browser" ), math::rect ( area.right ( ) - 4.0f, area.y, 8.0f, area.h ), true ) )
-			browser_width = base::clamp ( mouse.x - area.x, 200.0f, base::max ( w * 0.4f, 200.0f ) );
 
 	}
 

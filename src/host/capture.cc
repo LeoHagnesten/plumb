@@ -127,10 +127,10 @@ static uint32_t key_code ( const wchar_t* name, bool& control, bool& shift, bool
 
 	}
 
-	const wchar_t* names [ ] = { L"left", L"right", L"up", L"down", L"escape", L"enter", L"pagedown", L"pageup", L"home", L"end", L"f1", L"f5", L"tab", L"back" };
-	const uint32_t codes [ ] = { VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_ESCAPE, VK_RETURN, VK_NEXT, VK_PRIOR, VK_HOME, VK_END, VK_F1, VK_F5, VK_TAB, VK_BACK };
+	const wchar_t* names [ ] = { L"left", L"right", L"up", L"down", L"escape", L"enter", L"pagedown", L"pageup", L"home", L"end", L"f1", L"f5", L"tab", L"back", L"f2", L"f7", L"f8", L"f9", L"f12" };
+	const uint32_t codes [ ] = { VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_ESCAPE, VK_RETURN, VK_NEXT, VK_PRIOR, VK_HOME, VK_END, VK_F1, VK_F5, VK_TAB, VK_BACK, VK_F2, VK_F7, VK_F8, VK_F9, VK_F12 };
 
-	for ( int32_t i = 0; i < 14; i++ ) {
+	for ( int32_t i = 0; i < 19; i++ ) {
 
 		if ( base::same_text ( name, names [ i ] ) )
 			return codes [ i ];
@@ -232,6 +232,12 @@ static bool capture_mode ( ) {
 			step ( base::max ( static_cast < int32_t > ( reader.number ( ) * 60.0f + 0.5f ), 1 ) );
 		else if ( base::same_text ( command, L"frames" ) )
 			step ( static_cast < int32_t > ( reader.number ( ) ) );
+		else if ( base::same_text ( command, L"sleep" ) ) {
+
+			Sleep ( static_cast < DWORD > ( reader.number ( ) * 1000.0f ) );
+			step ( 3 );
+
+		}
 		else if ( base::same_text ( command, L"open" ) ) {
 
 			wchar_t path [ 600 ];
@@ -620,11 +626,7 @@ struct plain_names : decompiler::namer {
 
 	}
 
-	const wchar_t* local_name ( uint64_t function, int32_t slot ) override {
 
-		return nullptr;
-
-	}
 
 };
 

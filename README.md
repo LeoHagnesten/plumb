@@ -1,80 +1,93 @@
-<p align="center">
-  <img src="docs/media/icon.png" width="88" alt="">
-</p>
+<img src="docs/media/icon.png" width="64" align="right" alt="">
 
-<h1 align="center">Plumb</h1>
+# Plumb
 
-<p align="center">
-  A binary analysis workbench for Windows, written from scratch in C++.<br>
-  No C runtime, no dependencies, one executable of about 330&nbsp;KB.
-</p>
+A disassembler, decompiler and debugger for Windows executables. Plumb is written in C++ with no C runtime and no third-party code, and the whole program is a single executable.
 
-<p align="center">
-  <img src="docs/media/listing.png" alt="Plumb showing notepad.exe: the navigation band across the top, the functions browser, the listing at the entry point, the inspector and the output pane">
-</p>
+![The listing with the function browser, inspector and output](docs/media/listing.png)
 
-To plumb something is to measure how deep it goes. Plumb opens a Windows executable, maps it into memory and lays out everything inside it, from the DOS stub to the last import thunk, so you can read it the way a disassembler should let you.
+## What it does
 
-This is the baseline: the interface and the file model are in place, and the x86-64 decoder is the next piece to land in the listing.
+### Disassembly
 
-## What's here
+- Table-driven x86 and x86-64 decoder covering the legacy, VEX and EVEX (AVX-512) encodings. It matches llvm-objdump on more than 99% of instructions in the system DLLs it was tested against.
+- Text listing with full-width addresses, labels, function boundaries and `end of` markers, alignment padding, string and import rows, switch tables and vtables.
+- The listing behaves like a text editor. Click to place a caret, then drag or Shift-click to select any span (a register, an operand or whole lines) and Ctrl+C copies exactly that. Double-click a name to follow it, or anything else to select the word.
+- Opcode bytes are hidden by default. Turn them on under Window.
+- Number display per instruction: hex or decimal (H), character (R), binary (B) and float (F). Immediates that look like floats get a `float 1.0` hint.
+- Graph view (Space) with layered layout, colored edges (taken, not taken, unconditional, switch case), zoom, pan and a minimap.
 
-- **A real PE loader.** PE32 and PE32+ images for x86, x86-64, ARM and ARM64. It reads headers, sections, imports (by name and ordinal), exports (including forwarders), TLS callbacks and the CodeView debug record, and scans the whole file for ASCII and UTF-16 strings. Anything that isn't a PE opens as raw bytes, and ELF and Mach-O are recognized and named.
-- **Listing.** An IDA-style view of the whole image: section banners, labels for entry points, exports and strings, `extrn` rows for import slots, data rows with ASCII previews, and uninitialized space collapsed into `dup(?)`. Columns fit themselves to the window, and the cursor row glides between positions.
-- **Hex view.** Bytes colored by class, click and drag selection, section boundaries marked, and it stays in step with the listing cursor.
-- **Headers.** Every DOS, file and optional header field with its offset, raw value and meaning, plus decoded flags, timestamps, data directories and the section table.
-- **Navigation band.** The whole address space as one strip, colored by section kind, with function ticks. Click or drag to jump.
-- **Browser.** Functions, imports grouped by module, exports, strings and sections, each with a live filter and virtualized rows that stay quick with hundreds of thousands of entries.
-- **Inspector.** Address, RVA, file offset, section and item kind for the cursor, the raw bytes, those bytes read as every integer and float type, and facts about the image.
-- **Output and command line.** A load log, plus commands like `go 140001000`, `go start`, `section .rdata`, `view hex` and `theme light`.
-- **Command palette and jump.** Ctrl+Shift+P for every command, G to jump to an address, an RVA like `+1A30`, or a symbol or section name. Alt+Left and Alt+Right walk the history.
-- **Dark and light themes** that follow Windows on first launch and crossfade when you switch. Panels resize, collapse and give way when the window gets small, and the layout and recent files are remembered.
+### Analysis
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/media/headers.png" alt="The headers view"></td>
-    <td width="50%"><img src="docs/media/hex_light.png" alt="The hex view in the light theme"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Every header field, decoded</sub></td>
-    <td align="center"><sub>Hex view and string search, light theme</sub></td>
-  </tr>
-</table>
+- Multithreaded recursive descent seeded from the entry point, exports, TLS callbacks, `.pdata`, code pointers in data (including vtable runs) and prologue scans. A 19 MB code section is done in about 150 ms on 16 threads.
+- Cross-references for calls, jumps, reads, writes and pointers. X lists the references to the name under the caret, whether that's a call target, a global or the function you're in.
+- MSVC switch table recovery: image-relative, table-relative, pointer tables and byte index tables.
+- RTTI class recovery: class names, base class chains, vtables and virtual functions, named `Class::vftable` and `Class::vfunc_N` throughout. The Classes panel (Alt+6) lists them all.
+- Signature maker (Ctrl+Alt+S) that finds the shortest unique pattern and wildcards relocatable bytes, with output in IDA, x64dbg, code and mask, or byte array form. The signature finder (Ctrl+Alt+F) accepts the same formats or plain text.
+
+### Decompiler
+
+- F5 shows a function as C. Tab switches between C and disassembly, and each function can have its own tab.
+- Structured output: `if`/`else` chains, `while`, `do`/`while`, `switch` and `goto` only as a last resort. Dead stores and duplicate expressions are removed, and stack arguments are matched to calls.
+- Inferred struct layouts for pointer parameters, and float literals where the types show them.
+- Rename a variable (N) or set its type (Y), then the function decompiles again with that type. Y on the function name edits the whole prototype, including return type, name and parameters. Callers pick up the new argument count, and bad types produce a warning instead of failing silently.
+- Line numbers, VS-style coloring, and an optional `call ( arg )` spacing style.
+
+### Debugger
+
+- F9 starts the program and stops at its entry point. F7 steps into, F8 steps over, F12 pauses and Ctrl+F2 stops.
+- F2 toggles a breakpoint, which shows as a dot in the listing. Breakpoints are kept with the project and moved to the runtime base when ASLR relocates the image.
+- Registers appear in the inspector while paused, the current instruction is marked in the listing, and `OutputDebugString` messages go to the output pane.
+- Works on 64-bit and 32-bit (WOW64) executables.
+
+### Workspace
+
+- Up to 16 tabs across two split panes. Each tab is a listing, graph, C, hex or headers view.
+- Browser, inspector and output windows dock to the left, right or bottom: drag a window's header to move it. Window > Reset window layout puts everything back.
+- Projects save automatically: names, comments, bookmarks, number formats, variable names, types, prototypes and breakpoints.
+- Command palette (Ctrl+Shift+P), go to address or name (G), back and forward history, and a command line in the output pane.
+- Dark and light themes.
+
+| | |
+| --- | --- |
+| ![C view](docs/media/pseudocode.png) | ![Graph view](docs/media/graph.png) |
+| ![Classes recovered from RTTI](docs/media/classes.png) | ![Paused at a breakpoint](docs/media/debugger.png) |
+
+## Keys
+
+| Key | Action | Key | Action |
+| --- | --- | --- | --- |
+| G | Go to address or name | F5 | Decompile |
+| Space | Graph or text | Tab | Switch between C and disassembly |
+| X | References | N | Rename |
+| Y | Set type or prototype | ; | Comment |
+| H R B F | Number format | Ctrl+D | Bookmark |
+| F9 | Start or continue | F7 / F8 | Step into / over |
+| F2 | Breakpoint | Ctrl+F2 | Stop debugging |
+| Ctrl+Alt+S | Make signature | Ctrl+Alt+F | Find signature |
+| Ctrl+1 / 2 / 3 | New listing, hex or headers tab | Ctrl+\\ | Split |
 
 ## Building
 
-Plumb shares its build setup with [Pearl](https://github.com/nn-nymph/pearl). You need Visual Studio 2022 (any edition, or the Build Tools) with **Desktop development with C++** and **C++ Clang tools for Windows**, plus a Windows 10 or 11 SDK.
+You need Visual Studio 2022 (any edition, or the Build Tools) with the **Desktop development with C++** workload and **C++ Clang tools for Windows**, plus a Windows 10 or 11 SDK.
 
-```powershell
-.\tools\build.ps1                         # build\release\Plumb.exe
-.\tools\build.ps1 -configuration Debug    # build\debug\Plumb.exe
-.\tools\style.ps1                         # house style check
+Open `plumb.sln` and build the Release x64 configuration, or from a developer prompt:
+
+```
+msbuild plumb.sln -p:Configuration=Release -p:Platform=x64
 ```
 
-Pass a path to open a file at startup (`Plumb.exe C:\Windows\System32\notepad.exe`), or drop one on the window. `--software` renders on the CPU for machines with broken graphics drivers.
+The executable lands in `build\release\Plumb.exe`. Pass a file path to open it on startup, or drop a file on the window. `--software` renders on the CPU when the graphics driver misbehaves.
 
-## How it's put together
+## Source
 
-| Path | What's there |
-| --- | --- |
-| `src/runtime` | Entry point, allocator and the few C functions the compiler expects (no CRT) |
-| `src/base` | Containers, text formatting, math, file I/O |
-| `src/render` | Direct3D 11 and DirectComposition renderer, DirectWrite text |
-| `src/image` | The binary model: file mapping, PE parsing, string scanning, address translation |
-| `src/ui` | The app: chrome and menus, browser, listing, hex, headers, inspector, palette |
-| `src/main.cc` | The window, input, frame pacing and graphics device recovery |
-| `src/debug.cc` | Headless capture harness (Debug builds only) |
-
-The UI is immediate-mode and draws only while something is moving. Every list draws its backgrounds before its text, which keeps Direct2D text batching cheap even in the densest views.
-
-Debug builds can render without a window, which is how the screenshots here were made:
-
-```powershell
-.\build\debug\Plumb.exe --capture shot --size 1440x900 --script "open C:\Windows\System32\notepad.exe; wait 1; key ctrl+3; wait 1; shot headers"
-```
-
-## Next
-
-1. The x86-64 decoder, filling the listing's code rows with real instructions.
-2. Analysis: function discovery, cross-references and naming.
-3. The control-flow graph view, then pseudocode on top of it.
+- `src/runtime` Entry point, allocator and compiler support routines that replace the C runtime
+- `src/base` Containers, text formatting, math and file I/O
+- `src/loader` PE parsing, imports and exports, string scanning and address translation
+- `src/x86` Decoder and Intel-syntax formatter
+- `src/analysis` Function discovery, cross-references, switch tables, RTTI, graphs and signatures
+- `src/decompiler` Lifting, data flow cleanup, control flow structuring, C output and type parsing
+- `src/debugger` The Win32 debug loop
+- `src/render` Direct3D 11 renderer, DirectWrite text and shaders
+- `src/ui` Views, panels, docking, menus and commands
+- `src/host` The window, input and frame pacing

@@ -53,22 +53,6 @@ namespace ui {
 
 	}
 
-	static bool same_span ( const decompiler::result& code, const decompiler::span& a, const decompiler::span& b ) {
-
-		if ( a.length != b.length || a.kind != b.kind )
-			return false;
-
-		for ( int32_t i = 0; i < a.length; i++ ) {
-
-			if ( code.text [ static_cast < size_t > ( a.start + i ) ] != code.text [ static_cast < size_t > ( b.start + i ) ] )
-				return false;
-
-		}
-
-		return true;
-
-	}
-
 	void app::draw_pseudocode ( math::rect area ) {
 
 		render::canvas& c = canvas;
@@ -128,8 +112,13 @@ namespace ui {
 		while ( digits < 16 && ( highest >> ( digits * 4 ) ) )
 			digits++;
 
-		bool gutter = area.w > adv * 80.0f;
-		float x_base = area.x + ( gutter ? adv * static_cast < float > ( digits + 4 ) : 18.0f );
+		bool gutter = area.w > adv * 40.0f;
+		bool addresses = area.w > adv * 100.0f;
+		float small_adv = c.measure ( L"0000000000", render::font::MONO_SMALL ) * 0.1f;
+		int32_t number_digits = total >= 10000 ? 5 : ( total >= 1000 ? 4 : 3 );
+		float number_right = area.x + 10.0f + adv * static_cast < float > ( number_digits );
+		float address_x = number_right + adv * 1.5f;
+		float x_base = gutter ? ( addresses ? address_x + small_adv * static_cast < float > ( digits ) + adv * 2.5f : number_right + adv * 2.5f ) : area.x + 18.0f;
 		float columns = ( area.right ( ) - x_base - 16.0f ) / adv;
 		bool sideways = static_cast < float > ( widest + 2 ) > columns;
 		math::rect text_area ( area.x, area.y, area.w, area.h - ( sideways ? side_bar : 0.0f ) );
@@ -161,43 +150,96 @@ namespace ui {
 		int32_t first = static_cast < int32_t > ( offset );
 		float shift = ( offset - static_cast < float > ( first ) ) * row_h;
 
+		auto line_text = [ & ] ( int32_t row, wchar_t* out, int32_t& length ) {
+
+			const decompiler::line& item = code->lines [ static_cast < size_t > ( row ) ];
+
+			length = 0;
+
+			for ( int32_t k = 0; k < item.indent * 4 && length < 1000; k++ )
+				out [ length++ ] = L' ';
+
+			for ( int32_t k = 0; k < item.length && length < 1000; k++ )
+				out [ length++ ] = code->text [ static_cast < size_t > ( item.text + k ) ];
+
+			out [ length ] = 0;
+
+		};
+
+		uint64_t jump = 0;
+		uint64_t open_function = 0;
+
 		if ( active_id == id && mouse_down && total ) {
 
 			float local = ( mouse.y - area.y + shift ) / row_h;
 			int32_t row = base::clamp ( first + static_cast < int32_t > ( local < 0.0f ? local - 1.0f : local ), 0, total - 1 );
+			wchar_t line [ 1024 ];
+			int32_t length = 0;
+
+			line_text ( row, line, length );
+
+			int32_t column = base::clamp ( static_cast < int32_t > ( math::floor ( ( mouse.x - x_text ) / adv + 0.5f ) ), 0, length );
 
 			if ( press_event && over ( text_area ) ) {
 
 				now->code_line = row;
-				now->code_selecting = true;
-				now->code_token = -1;
+				now->code_col = column;
+				now->code_selecting = double_id != id;
+				blink_from = clock;
 
 				if ( key_shift )
 					now->code_ranged = true;
 				else {
 
 					now->code_anchor = row;
+					now->code_anchor_col = column;
 					now->code_ranged = false;
 
+				}
+
+				if ( double_id == id ) {
+
 					const decompiler::line& item = code->lines [ static_cast < size_t > ( row ) ];
-					float x = x_text + static_cast < float > ( item.indent * 4 ) * adv;
+					int32_t exact = static_cast < int32_t > ( math::floor ( ( mouse.x - x_text ) / adv ) );
+					int32_t inside = exact - item.indent * 4;
+					const decompiler::span* link = nullptr;
+					int32_t from = 0;
+					int32_t to = 0;
 
 					for ( int32_t s = 0; s < item.span_count; s++ ) {
 
 						const decompiler::span& part = code->spans [ static_cast < size_t > ( item.first_span + s ) ];
-						float start_x = x + static_cast < float > ( part.start - item.text ) * adv;
+						int32_t begin = part.start - item.text;
 
-						if ( mouse.x >= start_x && mouse.x < start_x + static_cast < float > ( part.length ) * adv && ( part.kind == decompiler::syntax::LOCAL || part.kind == decompiler::syntax::PARAMETER || part.kind == decompiler::syntax::GLOBAL || part.kind == decompiler::syntax::FUNCTION || part.kind == decompiler::syntax::IMPORT || part.kind == decompiler::syntax::LABEL ) )
-							now->code_token = item.first_span + s;
+						if ( part.target && inside >= begin && inside < begin + part.length )
+							link = &part;
+
+					}
+
+					if ( link && link->target != code->function ) {
+
+						if ( link->kind == decompiler::syntax::FUNCTION && db->function_starting ( link->target ) >= 0 )
+							open_function = link->target;
+						else
+							jump = link->target;
+
+					} else if ( word_bounds ( line, length, base::clamp ( exact, 0, length ), from, to ) ) {
+
+						now->code_anchor = row;
+						now->code_anchor_col = from;
+						now->code_col = to;
+						now->code_ranged = true;
 
 					}
 
 				}
 
-			} else if ( now->code_selecting && row != now->code_line ) {
+			} else if ( now->code_selecting && ( row != now->code_line || column != now->code_col ) ) {
 
 				now->code_line = row;
-				now->code_ranged = true;
+				now->code_col = column;
+				now->code_ranged = now->code_anchor != row || now->code_anchor_col != column;
+				blink_from = clock;
 
 			}
 
@@ -220,15 +262,8 @@ namespace ui {
 		if ( !mouse_down )
 			now->code_selecting = false;
 
-		if ( !now->code_ready ) {
-
-			now->code_y = static_cast < float > ( now->code_line );
-			now->code_ready = true;
-
-		}
-
 		now->code_y = static_cast < float > ( now->code_line );
-		now->code_velocity = 0.0f;
+		now->code_ready = true;
 
 		uint64_t follow = 0;
 
@@ -267,24 +302,17 @@ namespace ui {
 
 		}
 
-		const decompiler::span* hovered = now->code_token >= 0 && now->code_token < code->spans.count ( ) ? &code->spans [ static_cast < size_t > ( now->code_token ) ] : nullptr;
-		int32_t hover_row = over ( text_area ) ? first + static_cast < int32_t > ( ( mouse.y - area.y + shift ) / row_h ) : -1;
+		bool forward = now->code_anchor < now->code_line || ( now->code_anchor == now->code_line && now->code_anchor_col <= now->code_col );
+		int32_t low = forward ? now->code_anchor : now->code_line;
+		int32_t high = forward ? now->code_line : now->code_anchor;
+		int32_t low_col = forward ? now->code_anchor_col : now->code_col;
+		int32_t high_col = forward ? now->code_col : now->code_anchor_col;
+		bool ranged = now->code_ranged && ( low != high || low_col != high_col );
+		float cursor_y = area.y + ( now->code_y - offset ) * row_h;
+		int32_t count = static_cast < int32_t > ( visible ) + 2;
+		bool hand = false;
 
 		c.push_clip ( text_area );
-
-		float cursor_y = area.y + ( now->code_y - offset ) * row_h;
-
-		if ( now->code_ranged && now->code_anchor != now->code_line ) {
-
-			int32_t low = base::min ( now->code_anchor, now->code_line );
-			int32_t high = base::max ( now->code_anchor, now->code_line );
-			float y0 = area.y + ( static_cast < float > ( low ) - offset ) * row_h;
-			float y1 = area.y + ( static_cast < float > ( high + 1 ) - offset ) * row_h;
-
-			c.fill ( math::rect ( area.x, y0, area.w, y1 - y0 ), 0.0f, ink ( tone::SELECT ).fade ( 0.75f ) );
-
-		}
-
 		c.fill ( math::rect ( area.x, cursor_y, 2.5f, row_h ), 0.0f, ink ( tone::SELECT_LINE ) );
 
 		if ( synced >= 0 && synced != now->code_line ) {
@@ -295,133 +323,172 @@ namespace ui {
 
 		}
 
-		int32_t count = static_cast < int32_t > ( visible ) + 2;
+		for ( int32_t k = 0; k < count; k++ ) {
 
-		for ( int32_t pass = 0; pass < 2; pass++ ) {
+			int32_t row = first + k;
 
-			for ( int32_t k = 0; k < count; k++ ) {
+			if ( row >= total )
+				break;
 
-				int32_t row = first + k;
+			const decompiler::line& item = code->lines [ static_cast < size_t > ( row ) ];
+			float y = area.y + static_cast < float > ( k ) * row_h - shift;
 
-				if ( row >= total )
-					break;
+			c.push_clip ( inner );
 
-				const decompiler::line& item = code->lines [ static_cast < size_t > ( row ) ];
-				float y = area.y + static_cast < float > ( k ) * row_h - shift;
-				float cy = y + row_h * 0.5f;
-				float x = x_text + static_cast < float > ( item.indent * 4 ) * adv;
+			for ( int32_t guide = 1; guide <= item.indent; guide++ ) {
 
-				if ( pass == 0 ) {
+				float gx = x_text + static_cast < float > ( guide * 4 - 4 ) * adv + adv * 0.5f;
 
-					if ( row == hover_row && row != now->code_line )
-						c.fill ( math::rect ( area.x, y, area.w, row_h ), 0.0f, ink ( tone::HOVER ) );
+				c.fill ( math::rect ( gx, y, 1.0f, row_h ), 0.0f, ink ( tone::LINE ).fade ( 0.7f ) );
 
-					c.push_clip ( inner );
+			}
 
-					for ( int32_t guide = 1; guide <= item.indent; guide++ ) {
+			if ( ranged && row >= low && row <= high ) {
 
-						float gx = x_text + static_cast < float > ( guide * 4 - 4 ) * adv + adv * 0.5f;
+				int32_t length = item.indent * 4 + item.length;
+				int32_t from = row == low ? low_col : 0;
+				int32_t to = row == high ? high_col : length + 1;
 
-						c.fill ( math::rect ( gx, y, 1.0f, row_h ), 0.0f, ink ( tone::LINE ).fade ( 0.7f ) );
+				if ( to > from )
+					c.fill ( math::rect ( x_text + static_cast < float > ( from ) * adv, y + 1.0f, static_cast < float > ( to - from ) * adv, row_h - 2.0f ), 2.0f, ink ( tone::SELECT ) );
 
-					}
+			}
 
-					if ( hovered ) {
+			c.pop_clip ( );
 
-						for ( int32_t s = 0; s < item.span_count; s++ ) {
+		}
 
-							const decompiler::span& part = code->spans [ static_cast < size_t > ( item.first_span + s ) ];
+		for ( int32_t k = 0; k < count; k++ ) {
 
-							if ( same_span ( *code, part, *hovered ) )
-								c.fill ( math::rect ( x + static_cast < float > ( part.start - item.text ) * adv - 1.0f, y + 2.0f, static_cast < float > ( part.length ) * adv + 2.0f, row_h - 4.0f ), 2.0f, ink ( syntax_tone ( part.kind ) ).fade ( 0.16f ) );
+			int32_t row = first + k;
 
-						}
+			if ( row >= total )
+				break;
 
-					}
+			const decompiler::line& item = code->lines [ static_cast < size_t > ( row ) ];
+			float y = area.y + static_cast < float > ( k ) * row_h - shift;
+			float cy = y + row_h * 0.5f;
+			float x = x_text + static_cast < float > ( item.indent * 4 ) * adv;
 
-					c.pop_clip ( );
+			if ( gutter ) {
 
-					continue;
+				base::writer number;
 
-				}
+				number.number ( row + 1 );
+				c.text ( number.text ( ), render::font::MONO, math::vec2 ( number_right, cy ), ink ( row == now->code_line ? tone::INK_SOFT : tone::INK_FAINT ).fade ( row == now->code_line ? 1.0f : 0.75f ), render::align::RIGHT );
 
-				if ( gutter && item.address ) {
+				if ( addresses && item.address ) {
 
 					base::writer where;
 
 					where.hex ( item.address, digits );
-					c.text ( where.text ( ), render::font::MONO_SMALL, math::vec2 ( area.x + 12.0f, cy ), ink ( row == now->code_line || row == synced ? tone::ADDRESS : tone::INK_FAINT ) );
+					c.text ( where.text ( ), render::font::MONO_SMALL, math::vec2 ( address_x, cy ), ink ( row == synced ? tone::ADDRESS : tone::INK_FAINT ).fade ( row == now->code_line || row == synced ? 1.0f : 0.6f ) );
 
 				}
 
-				c.push_clip ( inner );
+			}
 
-				int32_t at = item.text;
-				int32_t end = item.text + item.length;
-				int32_t span_index = 0;
-				wchar_t piece [ 400 ];
+			c.push_clip ( inner );
 
-				while ( at < end ) {
+			int32_t at = item.text;
+			int32_t end = item.text + item.length;
+			int32_t span_index = 0;
+			wchar_t piece [ 400 ];
 
-					const decompiler::span* part = span_index < item.span_count ? &code->spans [ static_cast < size_t > ( item.first_span + span_index ) ] : nullptr;
-					int32_t stop = part ? ( part->start > at ? part->start : part->start + part->length ) : end;
-					tone color = part && part->start <= at ? syntax_tone ( part->kind ) : tone::INK;
+			while ( at < end ) {
 
-					stop = base::min ( stop, end );
+				const decompiler::span* part = span_index < item.span_count ? &code->spans [ static_cast < size_t > ( item.first_span + span_index ) ] : nullptr;
+				int32_t stop = part ? ( part->start > at ? part->start : part->start + part->length ) : end;
+				tone color = part && part->start <= at ? syntax_tone ( part->kind ) : tone::INK;
 
-					if ( stop <= at )
-						stop = at + 1;
+				stop = base::min ( stop, end );
 
-					int32_t length = base::min ( stop - at, 399 );
+				if ( stop <= at )
+					stop = at + 1;
 
-					for ( int32_t i = 0; i < length; i++ )
-						piece [ i ] = code->text [ static_cast < size_t > ( at + i ) ];
+				int32_t length = base::min ( stop - at, 399 );
 
-					piece [ length ] = 0;
+				for ( int32_t i = 0; i < length; i++ )
+					piece [ i ] = code->text [ static_cast < size_t > ( at + i ) ];
 
-					float px = x + static_cast < float > ( at - item.text ) * adv;
+				piece [ length ] = 0;
 
-					if ( px > area.right ( ) )
-						break;
+				float px = x + static_cast < float > ( at - item.text ) * adv;
 
-					c.text ( piece, render::font::MONO, math::vec2 ( px, cy ), ink ( color ) );
+				if ( px > area.right ( ) )
+					break;
 
-					if ( part && part->start <= at ) {
+				c.text ( piece, render::font::MONO, math::vec2 ( px, cy ), ink ( color ) );
 
-						if ( part->target && over ( math::rect ( px, y, static_cast < float > ( length ) * adv, row_h ) ) ) {
+				if ( part && part->start <= at ) {
 
-							wanted_cursor = pointer::HAND;
-							c.fill ( math::rect ( px, cy + 7.0f, static_cast < float > ( length ) * adv, 1.0f ), 0.0f, ink ( color ).fade ( 0.7f ) );
+					if ( part->target && part->target != code->function && !now->code_selecting && over ( math::rect ( px, y, static_cast < float > ( length ) * adv, row_h ) ) && over ( text_area ) ) {
 
-							if ( double_id == id || ( clicked_id == id && key_control ) ) {
+						hand = true;
+						c.fill ( math::rect ( px, cy + 7.0f, static_cast < float > ( length ) * adv, 1.0f ), 0.0f, ink ( color ).fade ( 0.7f ) );
 
-								if ( part->kind == decompiler::syntax::FUNCTION && db->function_starting ( part->target ) >= 0 && part->target != code->function ) {
+						if ( clicked_id == id && key_control ) {
 
-									now->back_stack.push ( now->function );
-									now->forward_stack.clear ( );
-									now->function = part->target;
-									now->code_scroll = scroller ( );
-									now->code_line = 0;
-									now->code_ready = false;
-
-								} else if ( part->kind != decompiler::syntax::FUNCTION )
-									follow = 0;
-
-							}
+							if ( part->kind == decompiler::syntax::FUNCTION && db->function_starting ( part->target ) >= 0 )
+								open_function = part->target;
+							else
+								jump = part->target;
 
 						}
 
-						span_index++;
-
 					}
 
-					at = stop;
+					span_index++;
 
 				}
 
+				at = stop;
+
+			}
+
+			c.pop_clip ( );
+
+		}
+
+		bool focused_view = focused && pane_document ( focused_pane ) >= 0 && &documents [ pane_document ( focused_pane ) ].state == now;
+
+		if ( focused_view && cursor_y > area.y - row_h && cursor_y < text_area.bottom ( ) ) {
+
+			double since = clock - blink_from;
+			bool lit = since < 0.6 || since > 60.0 || static_cast < int64_t > ( ( since - 0.6 ) / 0.53 ) % 2 == 1;
+
+			caret_live = true;
+
+			if ( lit || now->code_selecting ) {
+
+				c.push_clip ( inner );
+				c.fill ( math::rect ( x_text + static_cast < float > ( now->code_col ) * adv - 0.75f, cursor_y + 3.0f, 1.5f, row_h - 6.0f ), 0.5f, ink ( tone::INK ) );
 				c.pop_clip ( );
 
 			}
+
+		}
+
+		if ( hand )
+			wanted_cursor = pointer::HAND;
+		else if ( surface.hover > 0.5f && over ( text_area ) )
+			wanted_cursor = pointer::TEXT;
+
+		if ( open_function ) {
+
+			now->back_stack.push ( now->function );
+			now->forward_stack.clear ( );
+			now->function = open_function;
+			now->code_scroll = scroller ( );
+			now->code_line = 0;
+			now->code_col = 0;
+			now->code_ranged = false;
+			now->code_ready = false;
+
+		} else if ( jump ) {
+
+			now->code_ranged = false;
+			go ( jump, true );
 
 		}
 

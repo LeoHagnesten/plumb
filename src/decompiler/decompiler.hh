@@ -61,13 +61,62 @@ namespace decompiler {
 
 	};
 
+	struct c_type {
+
+		uint8_t size = 0;
+		uint8_t bits = 0;
+		bool pointer = false;
+		bool empty = false;
+		bool custom = false;
+
+	};
+
+	struct c_prototype {
+
+		wchar_t result [ 64 ] = { };
+		wchar_t name [ 64 ] = { };
+		c_type result_type;
+		wchar_t types [ 16 ] [ 64 ] = { };
+		wchar_t names [ 16 ] [ 64 ] = { };
+		c_type params [ 16 ];
+		int32_t count = 0;
+		bool variadic = false;
+
+	};
+
+	bool parse_type ( const wchar_t* text, bool long_mode, c_type& out, wchar_t* clean, int32_t room );
+
+	bool parse_prototype ( const wchar_t* text, bool long_mode, c_prototype& out, base::writer& problem );
+
 	struct namer {
 
 		virtual bool name ( uint64_t address, bool code, wchar_t* out, int32_t room ) = 0;
 
 		virtual bool literal ( uint64_t address, wchar_t* out, int32_t room ) = 0;
 
-		virtual const wchar_t* local_name ( uint64_t function, int32_t slot ) = 0;
+		virtual const wchar_t* local_name ( uint64_t, const wchar_t* ) {
+
+			return nullptr;
+
+		}
+
+		virtual const wchar_t* local_type ( uint64_t, const wchar_t* ) {
+
+			return nullptr;
+
+		}
+
+		virtual const wchar_t* prototype ( uint64_t ) {
+
+			return nullptr;
+
+		}
+
+		virtual bool spaced ( ) {
+
+			return false;
+
+		}
 
 	};
 

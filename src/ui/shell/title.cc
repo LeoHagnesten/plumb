@@ -14,15 +14,16 @@ namespace ui {
 
 	static const menu_spec menus [ ] = {
 		{ L"File", { command::OPEN, command::CLOSE, command::COUNT, command::EXIT }, 4 },
-		{ L"Edit", { command::COPY, command::COPY_FUNCTION, command::COUNT, command::RENAME, command::COMMENT, command::BOOKMARK, command::COUNT, command::NUMBER_RADIX, command::NUMBER_CHAR, command::NUMBER_BINARY, command::NUMBER_FLOAT, command::NUMBER_RESET, command::COUNT, command::FIND, command::PALETTE }, 15 },
+		{ L"Edit", { command::COPY, command::COPY_FUNCTION, command::COUNT, command::RENAME, command::COMMENT, command::SET_TYPE, command::BOOKMARK, command::COUNT, command::NUMBER_RADIX, command::NUMBER_CHAR, command::NUMBER_BINARY, command::NUMBER_FLOAT, command::NUMBER_RESET, command::COUNT, command::FIND, command::PALETTE }, 16 },
 		{ L"Jump", { command::GO_ADDRESS, command::GO_ENTRY, command::FOLLOW, command::COUNT, command::BACK, command::FORWARD, command::COUNT, command::NEXT_SECTION, command::PREVIOUS_SECTION }, 9 },
 		{ L"View", { command::TOGGLE_GRAPH, command::VIEW_PSEUDOCODE, command::SWAP_VIEW, command::COUNT, command::VIEW_LISTING, command::VIEW_HEX, command::VIEW_HEADERS, command::COUNT, command::SPLIT, command::NEXT_TAB, command::CLOSE_TAB, command::COUNT, command::THEME }, 13 },
-		{ L"Window", { command::SHOW_FUNCTIONS, command::SHOW_IMPORTS, command::SHOW_EXPORTS, command::SHOW_STRINGS, command::SHOW_SECTIONS, command::SHOW_CLASSES, command::SHOW_REFERENCES, command::SHOW_SEARCH, command::COUNT, command::TOGGLE_BROWSER, command::TOGGLE_INSPECTOR, command::TOGGLE_OUTPUT }, 12 },
+		{ L"Window", { command::SHOW_FUNCTIONS, command::SHOW_IMPORTS, command::SHOW_EXPORTS, command::SHOW_STRINGS, command::SHOW_SECTIONS, command::SHOW_CLASSES, command::SHOW_REFERENCES, command::SHOW_SEARCH, command::COUNT, command::TOGGLE_BROWSER, command::TOGGLE_INSPECTOR, command::TOGGLE_OUTPUT, command::RESET_LAYOUT, command::COUNT, command::TOGGLE_BYTES, command::TOGGLE_SPACING }, 16 },
 		{ L"Tools", { command::MAKE_SIGNATURE, command::FIND_SIGNATURE, command::COUNT, command::SHOW_REFERENCES }, 4 },
+		{ L"Debug", { command::DEBUG_RUN, command::DEBUG_PAUSE, command::DEBUG_STOP, command::COUNT, command::DEBUG_STEP_INTO, command::DEBUG_STEP_OVER, command::COUNT, command::DEBUG_BREAKPOINT }, 8 },
 		{ L"Help", { command::SHORTCUTS, command::COUNT, command::ABOUT }, 3 }
 	};
 
-	static constexpr int32_t menu_count = 7;
+	static constexpr int32_t menu_count = 8;
 	static float menu_x [ menu_count ];
 	static float menu_w [ menu_count ];
 

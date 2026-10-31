@@ -111,6 +111,40 @@ namespace ui {
 		write_list ( "comment", comments );
 		write_list ( "bookmark", bookmarks );
 		write_list ( "number", number_forms );
+		write_list ( "proto", prototypes );
+
+		for ( uint64_t item : breakpoints ) {
+
+			const char* prefix = "bp ";
+
+			for ( const char* at = prefix; *at; at++ )
+				out.push ( *at );
+
+			base::writer line;
+
+			line.hex ( item ).add ( L" on" );
+
+			for ( int32_t i = 0; i < line.size ( ); i++ )
+				out.push ( static_cast < char > ( line.text ( ) [ i ] ) );
+
+			out.push ( '\n' );
+
+		}
+
+		for ( const local_entry& entry : locals ) {
+
+			base::writer line;
+
+			line.add ( L"local " ).hex ( entry.function ).add ( L" " ).add ( entry.key.get ( ) ).add ( L" " ).add ( entry.name.empty ( ) ? L"-" : entry.name.get ( ) ).add ( L" " ).add ( entry.type.get ( ) );
+
+			int32_t length = WideCharToMultiByte ( CP_UTF8, 0, line.text ( ), line.size ( ), utf8, 1199, nullptr, nullptr );
+
+			for ( int32_t i = 0; i < length; i++ )
+				out.push ( utf8 [ i ] == '\n' ? ' ' : utf8 [ i ] );
+
+			out.push ( '\n' );
+
+		}
 		project_path ( file, path, 600 );
 
 		if ( out.empty ( ) ) {
@@ -131,6 +165,9 @@ namespace ui {
 		comments.clear ( );
 		bookmarks.clear ( );
 		number_forms.clear ( );
+		prototypes.clear ( );
+		locals.clear ( );
+		breakpoints.clear ( );
 
 		if ( !file.loaded ( ) )
 			return;
@@ -197,6 +234,41 @@ namespace ui {
 				set_user_text ( bookmarks, address, at );
 			else if ( base::same_text ( key, L"number" ) )
 				set_user_text ( number_forms, address, at );
+			else if ( base::same_text ( key, L"proto" ) )
+				set_user_text ( prototypes, address, at );
+			else if ( base::same_text ( key, L"bp" ) )
+				breakpoints.push ( address );
+			else if ( base::same_text ( key, L"local" ) ) {
+
+				wchar_t* name = at;
+
+				while ( *name && *name != L' ' )
+					name++;
+
+				if ( !*name )
+					continue;
+
+				*name++ = 0;
+
+				wchar_t* type = name;
+
+				while ( *type && *type != L' ' )
+					type++;
+
+				if ( *type )
+					*type++ = 0;
+
+				local_entry& entry = locals.emplace ( );
+
+				entry.function = address;
+				entry.key.set ( at );
+
+				if ( !base::same_text ( name, L"-" ) )
+					entry.name.set ( name );
+
+				entry.type.set ( type );
+
+			}
 
 		}
 
@@ -226,14 +298,13 @@ namespace ui {
 		wchar_t path [ 600 ];
 
 		put_line ( out, "theme", light ? L"light" : L"dark" );
-		value.number ( static_cast < int64_t > ( browser_width ) );
-		put_line ( out, "browser", value.text ( ) );
+		put_line ( out, "c_spaced", c_spaced ? L"1" : L"0" );
+		put_line ( out, "opcode_bytes", show_bytes ? L"1" : L"0" );
+		value.number ( static_cast < int64_t > ( dock_size [ 0 ] ) ).add ( L',' ).number ( static_cast < int64_t > ( dock_size [ 1 ] ) ).add ( L',' ).number ( static_cast < int64_t > ( dock_size [ 2 ] ) );
+		put_line ( out, "dock_sizes", value.text ( ) );
 		value.clear ( );
-		value.number ( static_cast < int64_t > ( inspector_width ) );
-		put_line ( out, "inspector", value.text ( ) );
-		value.clear ( );
-		value.number ( static_cast < int64_t > ( output_height ) );
-		put_line ( out, "output", value.text ( ) );
+		value.number ( static_cast < int32_t > ( docks [ 0 ] ) ).add ( L',' ).number ( static_cast < int32_t > ( docks [ 1 ] ) ).add ( L',' ).number ( static_cast < int32_t > ( docks [ 2 ] ) );
+		put_line ( out, "docks", value.text ( ) );
 		value.clear ( );
 		value.number ( ( browser_open ? 1 : 0 ) | ( inspector_open ? 2 : 0 ) | ( output_open ? 4 : 0 ) );
 		put_line ( out, "panels", value.text ( ) );
@@ -347,12 +418,33 @@ namespace ui {
 
 			if ( named ( "theme" ) )
 				light = base::same_text ( value, L"light" );
-			else if ( named ( "browser" ) )
-				browser_width = base::clamp ( static_cast < float > ( read_integer ( value ) ), 200.0f, 600.0f );
-			else if ( named ( "inspector" ) )
-				inspector_width = base::clamp ( static_cast < float > ( read_integer ( value ) ), 220.0f, 600.0f );
-			else if ( named ( "output" ) )
-				output_height = base::clamp ( static_cast < float > ( read_integer ( value ) ), 90.0f, 600.0f );
+			else if ( named ( "c_spaced" ) )
+				c_spaced = value [ 0 ] == L'1';
+			else if ( named ( "opcode_bytes" ) )
+				show_bytes = value [ 0 ] == L'1';
+			else if ( named ( "dock_sizes" ) || named ( "docks" ) ) {
+
+				const wchar_t* at = value;
+				bool sizes = named ( "dock_sizes" );
+
+				for ( int32_t i = 0; i < 3; i++ ) {
+
+					int64_t number = read_integer ( at );
+
+					if ( sizes )
+						dock_size [ i ] = base::clamp ( static_cast < float > ( number ), 90.0f, 900.0f );
+					else
+						docks [ i ] = static_cast < dock_side > ( base::clamp < int64_t > ( number, 0, 2 ) );
+
+					while ( *at && *at != L',' )
+						at++;
+
+					if ( *at == L',' )
+						at++;
+
+				}
+
+			}
 			else if ( named ( "panels" ) ) {
 
 				int64_t flags = read_integer ( value );

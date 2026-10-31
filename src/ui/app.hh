@@ -1,5 +1,6 @@
 #pragma once
 
+#include "debugger/debugger.hh"
 #include "render/render.hh"
 #include "loader/binary.hh"
 #include "analysis/database.hh"
@@ -147,10 +148,12 @@ namespace ui {
 		TOGGLE_BROWSER,
 		TOGGLE_INSPECTOR,
 		TOGGLE_OUTPUT,
+		RESET_LAYOUT,
 		THEME,
 		FOLLOW,
 		RENAME,
 		COMMENT,
+		SET_TYPE,
 		BOOKMARK,
 		NUMBER_RADIX,
 		NUMBER_CHAR,
@@ -160,9 +163,25 @@ namespace ui {
 		MAKE_SIGNATURE,
 		FIND_SIGNATURE,
 		COPY_FUNCTION,
+		TOGGLE_BYTES,
+		TOGGLE_SPACING,
+		DEBUG_RUN,
+		DEBUG_STEP_INTO,
+		DEBUG_STEP_OVER,
+		DEBUG_PAUSE,
+		DEBUG_STOP,
+		DEBUG_BREAKPOINT,
 		SHORTCUTS,
 		ABOUT,
 		COUNT,
+
+	};
+
+	enum class dock_side : int32_t {
+
+		LEFT,
+		RIGHT,
+		BOTTOM,
 
 	};
 
@@ -273,11 +292,15 @@ namespace ui {
 		uint64_t cursor_address = 0;
 		bool cursor_ready = false;
 		uint64_t select_anchor = 0;
+		int32_t caret_col = 0;
+		int32_t anchor_col = 0;
 		bool selecting = false;
 		bool ranged = false;
 		uint64_t row_for = ~0ull;
 		uint32_t row_build = 0;
 		int32_t code_anchor = 0;
+		int32_t code_col = 0;
+		int32_t code_anchor_col = 0;
 		bool code_selecting = false;
 		bool code_ranged = false;
 		int32_t code_token = -1;
@@ -345,6 +368,15 @@ namespace ui {
 
 	};
 
+	struct local_entry {
+
+		uint64_t function = 0;
+		base::text key;
+		base::text name;
+		base::text type;
+
+	};
+
 	struct search_hit {
 
 		uint64_t address = 0;
@@ -361,7 +393,101 @@ namespace ui {
 
 	};
 
+	struct row_line {
+
+		wchar_t text [ 400 ];
+		int32_t length = 0;
+		token_run runs [ 64 ];
+		uint8_t strong [ 64 ];
+		int32_t count = 0;
+		uint64_t address = 0;
+		line_kind kind = line_kind::BLANK;
+		bool decor = false;
+		bool instruction = false;
+
+		void clear ( ) {
+
+			length = 0;
+			count = 0;
+			text [ 0 ] = 0;
+			address = 0;
+			kind = line_kind::BLANK;
+			decor = false;
+			instruction = false;
+
+		}
+
+		void pad ( int32_t column ) {
+
+			while ( length < column && length < 398 )
+				text [ length++ ] = L' ';
+
+			text [ length ] = 0;
+
+		}
+
+		void put ( const wchar_t* value, tone color, uint64_t target = 0, bool bold = false ) {
+
+			int32_t start = length;
+
+			for ( const wchar_t* at = value; *at && length < 398; at++ )
+				text [ length++ ] = *at;
+
+			text [ length ] = 0;
+
+			if ( length > start && count < 64 ) {
+
+				token_run& run = runs [ count ];
+
+				run.start = start;
+				run.length = length - start;
+				run.color = color;
+				run.target = target;
+				strong [ count ] = bold ? 1 : 0;
+				count++;
+
+			}
+
+		}
+
+		void put_at ( int32_t column, const wchar_t* value, tone color, uint64_t target = 0, bool bold = false ) {
+
+			pad ( column );
+			put ( value, color, target, bold );
+
+		}
+
+		int32_t run_at ( int32_t column ) const {
+
+			for ( int32_t i = 0; i < count; i++ ) {
+
+				if ( column >= runs [ i ].start && column < runs [ i ].start + runs [ i ].length )
+					return i;
+
+			}
+
+			return -1;
+
+		}
+
+	};
+
+	struct row_columns {
+
+		int32_t digits = 16;
+		int32_t code = 18;
+		int32_t mnemonic = 24;
+		int32_t operands = 32;
+		int32_t note = 76;
+		bool bytes = false;
+
+	};
+
 	uint64_t make_id ( const char* name, int64_t index = 0 );
+
+	bool word_bounds ( const wchar_t* text, int32_t length, int32_t column, int32_t& from, int32_t& to );
+
+	int32_t step_caret ( const wchar_t* text, int32_t length, int32_t column, bool right, bool word );
 
 	class app {
 
@@ -423,13 +549,32 @@ namespace ui {
 
 		bool number_text ( uint64_t at, uint64_t raw, uint8_t size, wchar_t* out, int32_t room ) const;
 
+		const local_entry* local_for ( uint64_t function, const wchar_t* key ) const;
+
+		const wchar_t* prototype_for ( uint64_t function ) const;
+
+		void compose_row ( uint64_t row, const row_columns& cols, row_line& out ) const;
+
+		row_columns listing_columns ( float width, float adv ) const;
+
+		bool listing_selection ( base::list < wchar_t >& out ) const;
+
+		bool code_selection ( base::list < wchar_t >& out ) const;
+
+		uint64_t reference_subject ( ) const;
+
+		bool is_breakpoint ( uint64_t address ) const;
+
+		void sync_breakpoints ( );
+
+		void poll_debugger ( );
+
 		void function_name ( int32_t index, wchar_t* out, int32_t room ) const;
 
 		int32_t string_at ( uint64_t address ) const;
 
 		bool indirect_note ( const x86::instruction& ins, base::writer& out ) const;
 
-		void row_text ( uint64_t row, base::writer& out ) const;
 
 		render::gpu* gpu = nullptr;
 		void* window = nullptr;
@@ -500,6 +645,7 @@ namespace ui {
 		uint32_t frame_index = 1;
 		uint64_t focus_id = 0;
 		field* focused_field = nullptr;
+		bool focus_drawn = false;
 		bool field_submit = false;
 		double caret_time = 0.0;
 		const wchar_t* tip_text = nullptr;
@@ -512,7 +658,6 @@ namespace ui {
 		math::rect tip_candidate_anchor;
 
 		math::rect title_area;
-		math::rect band_area;
 		math::rect status_area;
 		math::rect rail_area;
 		math::rect browser_area;
@@ -521,11 +666,16 @@ namespace ui {
 		math::rect center_area;
 		math::rect view_area;
 
-		float browser_width = 288.0f;
-		float inspector_width = 300.0f;
+		dock_side docks [ 3 ] = { dock_side::LEFT, dock_side::RIGHT, dock_side::BOTTOM };
+		float dock_size [ 3 ] = { 288.0f, 300.0f, 190.0f };
+		math::rect dock_areas [ 3 ];
+		float dock_shows [ 3 ] = { };
+		int32_t dock_drag = -1;
+		int32_t dock_target = -1;
+		bool dock_moving = false;
+		math::vec2 dock_from;
 		float browser_fit = 288.0f;
 		float inspector_fit = 300.0f;
-		float output_height = 190.0f;
 		bool browser_open = true;
 		bool inspector_open = true;
 		bool output_open = true;
@@ -583,6 +733,9 @@ namespace ui {
 		float prompt_velocity = 0.0f;
 		command prompt_action = command::COUNT;
 		uint64_t prompt_address = 0;
+		int32_t prompt_mode = 0;
+		base::text prompt_key;
+		uint64_t prompt_function = 0;
 		field prompt_field;
 
 		bool signature_open = false;
@@ -611,6 +764,16 @@ namespace ui {
 		base::list < line_item > items;
 		base::list < base::text > names;
 		uint64_t total_rows = 0;
+		row_columns listing_cols;
+		base::list < row_line > row_cache;
+		bool show_bytes = false;
+		base::list < uint64_t > breakpoints;
+		debugger::snapshot debug_state;
+		uint64_t debug_pc = 0;
+		bool c_spaced = true;
+		uint64_t reference_target = ~0ull;
+		double blink_from = 0.0;
+		bool caret_live = false;
 		uint32_t listing_build = 1;
 		base::list < uint64_t > string_addresses;
 		base::list < int32_t > string_order;
@@ -618,6 +781,8 @@ namespace ui {
 		base::list < user_name > comments;
 		base::list < user_name > bookmarks;
 		base::list < user_name > number_forms;
+		base::list < user_name > prototypes;
+		base::list < local_entry > locals;
 		uint32_t names_revision = 0;
 
 		decompiler::cache code_cache;
@@ -742,6 +907,12 @@ namespace ui {
 
 		void open_prompt ( command action, uint64_t address );
 
+		void open_code_prompt ( command action, int32_t mode, const wchar_t* key, const wchar_t* fill );
+
+		bool code_variable ( wchar_t* key, wchar_t* shown ) const;
+
+		void set_local ( uint64_t function, const wchar_t* key, const wchar_t* name, const wchar_t* type );
+
 		void apply_prompt ( );
 
 		void draw_brand ( math::vec2 center, float height );
@@ -752,7 +923,6 @@ namespace ui {
 
 		void draw_menu ( );
 
-		void draw_band ( );
 
 		void draw_status ( );
 
@@ -795,6 +965,12 @@ namespace ui {
 		void draw_tip ( );
 
 		void draw_scrollbar ( uint64_t id, math::rect track, scroller& item, float content, float page );
+
+		void dock_handles ( );
+
+		void draw_docks ( );
+
+		void reset_layout ( );
 
 		void draw_side_scrollbar ( uint64_t id, math::rect track, scroller& item, float content, float page );
 

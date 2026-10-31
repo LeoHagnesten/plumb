@@ -78,7 +78,6 @@ namespace ui {
 
 		c.push_clip ( area );
 		c.fill ( area, 0.0f, ink ( tone::PANEL ) );
-		c.fill ( math::rect ( area.x, area.y, 1.0f, area.h ), 0.0f, ink ( tone::LINE ) );
 
 		uint64_t id = make_id ( "inspector" );
 
@@ -108,6 +107,38 @@ namespace ui {
 
 		c.text ( L"Inspector", render::font::HEADING, math::vec2 ( x, y + 10.0f ), ink ( tone::INK ) );
 		y += 26.0f;
+
+		if ( debug_state.state != debugger::status::IDLE ) {
+
+			static const wchar_t* const states [ 5 ] = { L"Idle", L"Running", L"Paused", L"Exited", L"Failed to start" };
+			base::writer value;
+
+			heading ( L"DEBUGGER" );
+			value.add ( states [ static_cast < int32_t > ( debug_state.state ) ] );
+
+			if ( debug_state.state == debugger::status::PAUSED && debug_state.note [ 0 ] )
+				value.add ( L"  \x00B7  " ).add ( debug_state.note );
+
+			pair ( L"State", value.text ( ), render::font::SMALL, ink ( debug_state.state == debugger::status::PAUSED ? tone::WARNING : ( debug_state.state == debugger::status::RUNNING ? tone::SUCCESS : tone::INK_SOFT ) ) );
+
+			if ( debug_state.state == debugger::status::PAUSED ) {
+
+				int32_t shown = debug_state.wide ? 18 : 10;
+				uint32_t width = debug_state.wide ? 16 : 8;
+
+				for ( int32_t i = 0; i < shown; i++ ) {
+
+					int32_t index = debug_state.wide ? i : ( i < 8 ? i : i + 8 );
+					base::writer number;
+
+					number.hex ( debug_state.registers [ index ], static_cast < int32_t > ( width ) );
+					pair ( debugger::register_name ( index, debug_state.wide ), number.text ( ), render::font::MONO, ink ( index == 16 ? tone::WARNING : tone::INK ) );
+
+				}
+
+			}
+
+		}
 		heading ( L"LOCATION" );
 
 		base::writer text;
@@ -357,9 +388,6 @@ namespace ui {
 		glide ( inspector_scroll, content - area.h );
 		c.pop_clip ( );
 		draw_scrollbar ( make_id ( "inspector_bar" ), area, inspector_scroll, content, area.h );
-
-		if ( inspector_show > 0.98f && splitter ( make_id ( "split_inspector" ), math::rect ( area.x - 4.0f, area.y, 8.0f, area.h ), true ) )
-			inspector_width = base::clamp ( area.right ( ) - mouse.x, 220.0f, base::max ( w * 0.35f, 220.0f ) );
 
 	}
 

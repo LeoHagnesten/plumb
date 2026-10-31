@@ -15,7 +15,6 @@ namespace ui {
 
 		c.push_clip ( area );
 		c.fill ( area, 0.0f, ink ( tone::PANEL ) );
-		c.fill ( math::rect ( area.x, area.y, area.w, 1.0f ), 0.0f, ink ( tone::LINE ) );
 
 		math::rect bar ( area.x, area.y + 1.0f, area.w, bar_h );
 
@@ -64,9 +63,6 @@ namespace ui {
 			run_command_line ( );
 
 		c.pop_clip ( );
-
-		if ( output_show > 0.98f && splitter ( make_id ( "split_output" ), math::rect ( area.x, area.y - 4.0f, area.w, 8.0f ), false ) )
-			output_height = base::clamp ( area.bottom ( ) - mouse.y, 90.0f, base::max ( ( status_area.y - title_area.bottom ( ) ) * 0.6f, 90.0f ) );
 
 	}
 
