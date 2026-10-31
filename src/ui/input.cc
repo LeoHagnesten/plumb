@@ -275,6 +275,23 @@ namespace ui {
 			if ( focused_field && edit_keys ( *focused_field, code ) )
 				continue;
 
+			if ( code == VK_F9 || code == VK_F7 || code == VK_F8 || code == VK_F12 || code == VK_F2 ) {
+
+				if ( code == VK_F9 )
+					run ( command::DEBUG_RUN );
+				else if ( code == VK_F7 )
+					run ( command::DEBUG_STEP_INTO );
+				else if ( code == VK_F8 )
+					run ( command::DEBUG_STEP_OVER );
+				else if ( code == VK_F12 )
+					run ( command::DEBUG_PAUSE );
+				else
+					run ( key_control ? command::DEBUG_STOP : command::DEBUG_BREAKPOINT );
+
+				continue;
+
+			}
+
 			if ( code == VK_ESCAPE ) {
 
 				if ( menu_open >= 0 )
@@ -464,6 +481,22 @@ namespace ui {
 
 			}
 
+			if ( code == VK_F5 ) {
+
+				run ( command::VIEW_PSEUDOCODE );
+
+				continue;
+
+			}
+
+			if ( code == VK_F1 ) {
+
+				run ( command::SHORTCUTS );
+
+				continue;
+
+			}
+
 			if ( focused_field )
 				continue;
 
@@ -483,6 +516,10 @@ namespace ui {
 
 				case 'R':
 					run ( command::NUMBER_CHAR );
+					continue;
+
+				case 'Y':
+					run ( command::SET_TYPE );
 					continue;
 
 				case 'B':
@@ -512,14 +549,6 @@ namespace ui {
 
 					continue;
 
-				case VK_F1:
-					run ( command::SHORTCUTS );
-					continue;
-
-				case VK_F5:
-					run ( command::VIEW_PSEUDOCODE );
-					continue;
-
 				case VK_BACK:
 					run ( command::BACK );
 					continue;
@@ -545,6 +574,27 @@ namespace ui {
 				int64_t page = static_cast < int64_t > ( panes [ focused_pane ].body.h / 20.0f ) - 2;
 				int64_t move = 0;
 
+				if ( code == VK_LEFT || code == VK_RIGHT ) {
+
+					row_line line;
+
+					compose_row ( now->cursor_row, listing_cols, line );
+					now->caret_col = step_caret ( line.text, line.length, base::min ( now->caret_col, line.length ), code == VK_RIGHT, key_control );
+					blink_from = clock;
+
+					if ( key_shift )
+						now->ranged = true;
+					else {
+
+						now->anchor_col = now->caret_col;
+						now->ranged = false;
+
+					}
+
+					continue;
+
+				}
+
 				if ( code == VK_DOWN )
 					move = 1;
 				else if ( code == VK_UP )
@@ -559,12 +609,14 @@ namespace ui {
 					int64_t target = static_cast < int64_t > ( now->cursor_row ) + move;
 
 					set_cursor_row ( static_cast < uint64_t > ( base::clamp < int64_t > ( target, 0, static_cast < int64_t > ( total_rows ) - 1 ) ), false );
+					blink_from = clock;
 
 					if ( key_shift )
 						now->ranged = true;
 					else {
 
 						now->select_anchor = now->cursor_row;
+						now->anchor_col = now->caret_col;
 						now->ranged = false;
 
 					}
@@ -581,6 +633,35 @@ namespace ui {
 				int32_t count = code_view->lines.count ( );
 				int32_t page = static_cast < int32_t > ( panes [ focused_pane ].body.h / 20.0f ) - 2;
 				int32_t move = 0;
+
+				if ( ( code == VK_LEFT || code == VK_RIGHT ) && count ) {
+
+					const decompiler::line& item = code_view->lines [ static_cast < size_t > ( base::clamp ( now->code_line, 0, count - 1 ) ) ];
+					wchar_t text [ 1024 ];
+					int32_t length = 0;
+
+					for ( int32_t k = 0; k < item.indent * 4 && length < 1000; k++ )
+						text [ length++ ] = L' ';
+
+					for ( int32_t k = 0; k < item.length && length < 1000; k++ )
+						text [ length++ ] = code_view->text [ static_cast < size_t > ( item.text + k ) ];
+
+					text [ length ] = 0;
+					now->code_col = step_caret ( text, length, base::min ( now->code_col, length ), code == VK_RIGHT, key_control );
+					blink_from = clock;
+
+					if ( key_shift )
+						now->code_ranged = true;
+					else {
+
+						now->code_anchor_col = now->code_col;
+						now->code_ranged = false;
+
+					}
+
+					continue;
+
+				}
 
 				if ( code == VK_DOWN )
 					move = 1;
@@ -613,12 +694,14 @@ namespace ui {
 				if ( move && count ) {
 
 					now->code_line = base::clamp ( now->code_line + move, 0, count - 1 );
+					blink_from = clock;
 
 					if ( key_shift )
 						now->code_ranged = true;
 					else {
 
 						now->code_anchor = now->code_line;
+						now->code_anchor_col = now->code_col;
 						now->code_ranged = false;
 
 					}

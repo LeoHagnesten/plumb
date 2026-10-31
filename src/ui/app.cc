@@ -32,11 +32,11 @@ namespace ui {
 	};
 
 	static const uint32_t light_tones [ static_cast < int32_t > ( tone::COUNT ) ] = {
-		0xFAF9F6, 0xF1EFEA, 0xFFFFFF, 0xE9E6E0, 0xE6E3DD, 0xDCD8D0, 0xC5C0B6, 0x1E2126, 0x5B616B, 0x99A0A8,
-		0xA86F1C, 0xA86F1C, 0xFFFFFF, 0xDCE6F4, 0x4A78B8, 0x000000, 0x000000, 0x000000, 0x6D7580, 0x8D939B,
-		0x96620E, 0x285CA6, 0x098658, 0xA31515, 0x1D776D, 0x2E7D32, 0x6F95CC, 0xB8A57A, 0x9C97B5, 0xD6D2CA,
-		0x9AA0A8, 0xC8473C, 0x3F8F3C, 0xB7860F, 0x0F54D6, 0x8F08C4, 0x2B91AF, 0x74531F, 0x1F377F, 0x1F6F8F,
-		0x5E6B12, 0x5A5A5A, 0x2F4F7F, 0x8A5A00, 0xA86F1C
+		0xE9E7E2, 0xE1DFD9, 0xF0EEE9, 0xDAD7D0, 0xDCD9D2, 0xCFCBC3, 0xB8B3A9, 0x2B2E34, 0x5D626B, 0x8E939A,
+		0x9E6A1E, 0x9E6A1E, 0xFFFFFF, 0xCCD7E6, 0x4A74AE, 0x000000, 0x000000, 0x000000, 0x6E7580, 0x8A8F96,
+		0x8F5F12, 0x2C5C9E, 0x24785A, 0x9C3B2E, 0x2A6E66, 0x4C7A3A, 0x7896C2, 0xB3A27A, 0x9A96B0, 0xCFCBC2,
+		0x969BA2, 0xBF4A3F, 0x3F873C, 0xA97C12, 0x2F5DB8, 0x8240A8, 0x2A7F98, 0x6E5220, 0x26407A, 0x2A6A86,
+		0x5E6B1E, 0x5C5C5C, 0x34507A, 0x86591A, 0x9E6A1E
 	};
 
 	static const float tone_alpha [ static_cast < int32_t > ( tone::COUNT ) ] [ 2 ] = {
@@ -148,7 +148,29 @@ namespace ui {
 
 	double app::wake_after ( ) const {
 
-		return focused_field ? 0.5 : -1.0;
+		if ( focused_field )
+			return 0.5;
+
+		if ( debug_state.state == debugger::status::RUNNING )
+			return 0.1;
+
+		if ( caret_live && focused ) {
+
+			double since = clock - blink_from;
+
+			if ( since > 60.0 )
+				return -1.0;
+
+			if ( since < 0.6 )
+				return 0.6 - since + 0.005;
+
+			double phase = since - 0.6;
+
+			return 0.53 - ( phase - static_cast < double > ( static_cast < int64_t > ( phase / 0.53 ) ) * 0.53 ) + 0.005;
+
+		}
+
+		return -1.0;
 
 	}
 
@@ -427,18 +449,33 @@ namespace ui {
 
 		float gap = item.target - item.offset;
 
-		if ( math::abs ( gap ) * pixels < 0.25f && math::abs ( item.velocity ) * pixels < 2.0f ) {
+		item.velocity = 0.0f;
+
+		if ( math::abs ( gap ) * pixels < 0.5f ) {
 
 			item.offset = item.target;
-			item.velocity = 0.0f;
 			item.shown = math::round ( item.offset * pixels ) / pixels;
 
 			return;
 
 		}
 
-		spring ( item.offset, item.velocity, item.target, 300.0f, 35.0f );
-		item.offset = base::clamp ( item.offset, -40.0f, item.limit + 40.0f );
+		float reach = 520.0f * dpi / pixels;
+
+		if ( math::abs ( gap ) > reach ) {
+
+			item.offset = item.target - ( gap < 0.0f ? -reach : reach );
+			gap = item.target - item.offset;
+
+		}
+
+		float step = gap * ( 1.0f - math::exp ( -17.0f * dt ) );
+		float least = 260.0f * dpi * dt / pixels;
+
+		if ( math::abs ( step ) < least )
+			step = gap < 0.0f ? -base::min ( least, -gap ) : base::min ( least, gap );
+
+		item.offset += step;
 		item.shown = math::round ( item.offset * pixels ) / pixels;
 		animating = true;
 
@@ -506,6 +543,13 @@ namespace ui {
 
 			if ( double_event )
 				double_id = hot;
+
+			if ( focus_id && hot != focus_id && !palette_open && !prompt_open && !signature_open ) {
+
+				focus_id = 0;
+				focused_field = nullptr;
+
+			}
 
 		}
 
@@ -629,53 +673,98 @@ namespace ui {
 		spring ( output_show, output_velocity, output_open && has ? 1.0f : 0.0f, 320.0f, 34.0f );
 
 		float file_show = 1.0f - welcome_show;
-		float band = has ? 18.0f * file_show : 0.0f;
-
-		band_area = math::rect ( 0.0f, top, w, band );
-		top += band;
-
 		float rail = 46.0f * file_show;
 
-		browser_width = base::clamp ( browser_width, 200.0f, base::max ( w * 0.4f, 200.0f ) );
-		inspector_width = base::clamp ( inspector_width, 220.0f, base::max ( w * 0.35f, 220.0f ) );
-		output_height = base::clamp ( output_height, 90.0f, base::max ( ( bottom - top ) * 0.6f, 90.0f ) );
+		float tall = bottom - top;
 
-		float excess = browser_width + inspector_width + 480.0f - ( w - rail );
+		dock_size [ 0 ] = base::clamp ( dock_size [ 0 ], 200.0f, base::max ( w * 0.45f, 200.0f ) );
+		dock_size [ 1 ] = base::clamp ( dock_size [ 1 ], 200.0f, base::max ( w * 0.45f, 200.0f ) );
+		dock_size [ 2 ] = base::clamp ( dock_size [ 2 ], 90.0f, base::max ( tall * 0.6f, 90.0f ) );
 
-		browser_fit = browser_width;
-		inspector_fit = inspector_width;
+		float shows [ 3 ] = { has ? math::saturate ( browser_show ) : 0.0f, has ? math::saturate ( inspector_show ) : 0.0f, has ? math::saturate ( output_show ) : 0.0f };
+		float side_show [ 3 ] = { 0.0f, 0.0f, 0.0f };
+		float side_fit [ 3 ] = { dock_size [ 0 ], dock_size [ 1 ], dock_size [ 2 ] };
 
-		if ( excess > 0.0f && inspector_open ) {
+		for ( int32_t p = 0; p < 3; p++ )
+			side_show [ static_cast < int32_t > ( docks [ p ] ) ] = base::max ( side_show [ static_cast < int32_t > ( docks [ p ] ) ], shows [ p ] );
 
-			float cut = base::min ( excess, base::max ( inspector_fit - 230.0f, 0.0f ) );
+		float excess = ( side_show [ 0 ] > 0.0f ? side_fit [ 0 ] : 0.0f ) + ( side_show [ 1 ] > 0.0f ? side_fit [ 1 ] : 0.0f ) + 420.0f - ( w - rail );
 
-			inspector_fit -= cut;
+		if ( excess > 0.0f && side_show [ 1 ] > 0.0f ) {
+
+			float cut = base::min ( excess, base::max ( side_fit [ 1 ] - 210.0f, 0.0f ) );
+
+			side_fit [ 1 ] -= cut;
 			excess -= cut;
 
 		}
 
-		if ( excess > 0.0f && browser_open ) {
+		if ( excess > 0.0f && side_show [ 0 ] > 0.0f ) {
 
-			float cut = base::min ( excess, base::max ( browser_fit - 210.0f, 0.0f ) );
+			float cut = base::min ( excess, base::max ( side_fit [ 0 ] - 210.0f, 0.0f ) );
 
-			browser_fit -= cut;
+			side_fit [ 0 ] -= cut;
 			excess -= cut;
 
 		}
 
-		bool cramped = excess > 0.0f && w - rail - browser_fit * ( browser_open ? 1.0f : 0.0f ) - inspector_fit < 420.0f;
-		float browser = browser_fit * math::saturate ( browser_show );
-		float inspector = cramped ? 0.0f : inspector_fit * math::saturate ( inspector_show );
+		float left = side_fit [ 0 ] * side_show [ 0 ];
+		float right = excess > 0.0f ? 0.0f : side_fit [ 1 ] * side_show [ 1 ];
+		float lower = side_fit [ 2 ] * side_show [ 2 ];
 
-		rail_area = math::rect ( 0.0f, top, rail, bottom - top );
-		browser_area = math::rect ( rail, top, browser, bottom - top );
-		inspector_area = math::rect ( w - inspector, top, inspector, bottom - top );
-		center_area = math::rect ( browser_area.right ( ), top, inspector_area.x - browser_area.right ( ), bottom - top );
+		rail_area = math::rect ( 0.0f, top, rail, tall );
+		dock_areas [ 0 ] = math::rect ( rail, top, left, tall );
+		dock_areas [ 1 ] = math::rect ( w - right, top, right, tall );
+		center_area = math::rect ( dock_areas [ 0 ].right ( ), top, dock_areas [ 1 ].x - dock_areas [ 0 ].right ( ), tall );
+		dock_areas [ 2 ] = math::rect ( center_area.x, bottom - lower, center_area.w, lower );
+		view_area = math::rect ( center_area.x, top, center_area.w, dock_areas [ 2 ].y - top );
 
-		float outputs = output_height * math::saturate ( output_show );
+		for ( int32_t s = 0; s < 3; s++ )
+			dock_shows [ s ] = side_show [ s ];
 
-		output_area = math::rect ( center_area.x, bottom - outputs, center_area.w, outputs );
-		view_area = math::rect ( center_area.x, top, center_area.w, output_area.y - top );
+		math::rect* targets [ 3 ] = { &browser_area, &inspector_area, &output_area };
+
+		for ( int32_t s = 0; s < 3; s++ ) {
+
+			float weight = 0.0f;
+			float at = 0.0f;
+			const math::rect& side = dock_areas [ s ];
+
+			for ( int32_t p = 0; p < 3; p++ ) {
+
+				if ( static_cast < int32_t > ( docks [ p ] ) == s )
+					weight += shows [ p ];
+
+			}
+
+			for ( int32_t p = 0; p < 3; p++ ) {
+
+				if ( static_cast < int32_t > ( docks [ p ] ) != s )
+					continue;
+
+				float share = weight > 0.0f ? shows [ p ] / weight : 0.0f;
+
+				if ( s == 2 ) {
+
+					*targets [ p ] = math::rect ( side.x + at, side.y, side.w * share, side.h );
+					at += side.w * share;
+
+				} else {
+
+					*targets [ p ] = math::rect ( side.x, side.y + at, side.w, side.h * share );
+					at += side.h * share;
+
+				}
+
+				if ( shows [ p ] <= 0.0f )
+					*targets [ p ] = math::rect ( side.x, side.y, 0.0f, 0.0f );
+
+			}
+
+		}
+
+		browser_fit = docks [ 0 ] == dock_side::BOTTOM ? browser_area.w : side_fit [ static_cast < int32_t > ( docks [ 0 ] ) ];
+		inspector_fit = docks [ 1 ] == dock_side::BOTTOM ? inspector_area.w : side_fit [ static_cast < int32_t > ( docks [ 1 ] ) ];
 
 		float strip = has ? 34.0f : 0.0f;
 
@@ -691,12 +780,33 @@ namespace ui {
 		} else
 			panes [ 0 ].area = view_area;
 
+		auto snap = [ & ] ( math::rect value ) {
+
+			float left = math::round ( value.x * dpi ) / dpi;
+			float top_edge = math::round ( value.y * dpi ) / dpi;
+			float right = math::round ( value.right ( ) * dpi ) / dpi;
+			float bottom_edge = math::round ( value.bottom ( ) * dpi ) / dpi;
+
+			return math::rect ( left, top_edge, right - left, bottom_edge - top_edge );
+
+		};
+
+		browser_area = snap ( browser_area );
+		inspector_area = snap ( inspector_area );
+		center_area = snap ( center_area );
+
+		for ( int32_t s = 0; s < 3; s++ )
+			dock_areas [ s ] = snap ( dock_areas [ s ] );
+		output_area = snap ( output_area );
+		view_area = snap ( view_area );
+
 		for ( int32_t i = 0; i < pane_count; i++ ) {
 
 			pane& item = panes [ i ];
 
-			item.strip = math::rect ( item.area.x, item.area.y, item.area.w, strip );
-			item.body = math::rect ( item.area.x, item.area.y + strip, item.area.w, item.area.h - strip );
+			item.area = snap ( item.area );
+			item.strip = snap ( math::rect ( item.area.x, item.area.y, item.area.w, strip ) );
+			item.body = snap ( math::rect ( item.area.x, item.area.y + strip, item.area.w, item.area.h - strip ) );
 
 		}
 
@@ -706,9 +816,12 @@ namespace ui {
 
 		begin_frame ( seconds );
 		begin_input ( );
+		caret_live = false;
 
 		if ( analysis_done && !analysis_applied )
 			analysis_finished ( );
+
+		poll_debugger ( );
 
 		select_state ( current_document ( ) );
 		handle_keys ( );
@@ -727,11 +840,12 @@ namespace ui {
 		if ( file.loaded ( ) ) {
 
 			canvas.push_alpha ( 1.0f - welcome_show );
-			draw_band ( );
 			draw_panes ( );
+			dock_handles ( );
 			draw_output ( );
 			draw_browser ( );
 			draw_inspector ( );
+			draw_docks ( );
 			draw_rail ( );
 			canvas.pop ( );
 
@@ -745,6 +859,15 @@ namespace ui {
 		draw_prompt ( );
 		draw_signature ( );
 		draw_tip ( );
+
+		if ( focus_id && !focus_drawn && !palette_open && !prompt_open && !signature_open ) {
+
+			focus_id = 0;
+			focused_field = nullptr;
+
+		}
+
+		focus_drawn = false;
 
 		if ( focused_field && clock - caret_time < 30.0 )
 			pending = base::max ( pending, 1 );

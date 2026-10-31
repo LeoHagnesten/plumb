@@ -29,7 +29,7 @@ namespace ui {
 
 		bool about = about_show >= keys_show;
 		float box_w = about ? 460.0f : 700.0f;
-		float box_h = about ? 260.0f : 590.0f;
+		float box_h = about ? 260.0f : base::min ( h - 60.0f, 640.0f );
 		math::rect box ( w * 0.5f - box_w * 0.5f, h * 0.5f - box_h * 0.5f, box_w, box_h );
 
 		c.push ( box.center ( ), 0.97f + 0.03f * show, show );
@@ -51,14 +51,14 @@ namespace ui {
 		if ( about ) {
 
 			draw_brand ( math::vec2 ( box.x + 44.0f, box.y + 50.0f ), 40.0f );
-			c.text ( L"Plumb 0.2", render::font::HEADING, math::vec2 ( box.x + 76.0f, box.y + 42.0f ), ink ( tone::INK ) );
-			c.text ( L"Disassembler and decompiler for Windows binaries", render::font::SMALL, math::vec2 ( box.x + 76.0f, box.y + 62.0f ), ink ( tone::INK_SOFT ) );
+			c.text ( L"Plumb 0.3", render::font::HEADING, math::vec2 ( box.x + 76.0f, box.y + 42.0f ), ink ( tone::INK ) );
+			c.text ( L"Disassembler, decompiler and debugger for Windows executables", render::font::SMALL, math::vec2 ( box.x + 76.0f, box.y + 62.0f ), ink ( tone::INK_SOFT ) );
 
 			const wchar_t* lines [ ] = {
-				L"x86 and x86-64, including SSE, AVX, AVX2, FMA, BMI and AVX-512",
-				L"Function discovery, switch tables and cross-references on every core",
-				L"Disassembly as text or graph, C by function, hex and headers",
-				L"Signature maker and finder, renames, comments, bookmarks"
+				L"x86 and x86-64 decoding, including AVX-512",
+				L"Functions, references, switch tables and RTTI on every core",
+				L"Text, graph and C views with editable names, types and prototypes",
+				L"Debugger with breakpoints and stepping, signature maker and finder"
 			};
 
 			for ( int32_t i = 0; i < 4; i++ ) {
@@ -80,8 +80,9 @@ namespace ui {
 			const command order [ ] = {
 				command::OPEN, command::PALETTE, command::GO_ADDRESS, command::GO_ENTRY, command::BACK, command::FORWARD, command::FOLLOW,
 				command::TOGGLE_GRAPH, command::VIEW_PSEUDOCODE, command::SWAP_VIEW, command::VIEW_LISTING, command::VIEW_HEX, command::SPLIT,
-				command::CLOSE_TAB, command::NEXT_TAB, command::RENAME, command::COMMENT, command::BOOKMARK, command::NUMBER_RADIX, command::NUMBER_CHAR, command::SHOW_REFERENCES,
+				command::CLOSE_TAB, command::NEXT_TAB, command::RENAME, command::SET_TYPE, command::COMMENT, command::BOOKMARK, command::NUMBER_RADIX, command::NUMBER_CHAR, command::SHOW_REFERENCES,
 				command::MAKE_SIGNATURE, command::FIND_SIGNATURE, command::COPY, command::COPY_FUNCTION, command::FIND, command::SHOW_FUNCTIONS,
+				command::DEBUG_RUN, command::DEBUG_STEP_INTO, command::DEBUG_STEP_OVER, command::DEBUG_BREAKPOINT, command::DEBUG_STOP,
 				command::TOGGLE_BROWSER, command::TOGGLE_INSPECTOR, command::TOGGLE_OUTPUT, command::THEME, command::CLOSE
 			};
 			int32_t total = static_cast < int32_t > ( sizeof ( order ) / sizeof ( order [ 0 ] ) );
@@ -91,7 +92,7 @@ namespace ui {
 			for ( int32_t i = 0; i < total; i++ ) {
 
 				float cx = box.x + 28.0f + ( i < half ? 0.0f : column + 32.0f );
-				float cy = box.y + 70.0f + static_cast < float > ( i < half ? i : i - half ) * 33.0f;
+				float cy = box.y + 70.0f + static_cast < float > ( i < half ? i : i - half ) * base::min ( 27.0f, ( box.h - 96.0f ) / static_cast < float > ( half ) );
 
 				c.text ( command_label ( order [ i ] ), render::font::UI, math::vec2 ( cx, cy ), ink ( tone::INK ), render::align::LEFT, column - 110.0f );
 				key_cap ( math::vec2 ( cx + column, cy ), command_keys ( order [ i ] ), ink ( tone::INK_SOFT ), true );
@@ -135,9 +136,26 @@ namespace ui {
 			title = L"Comment";
 		else if ( prompt_action == command::FIND_SIGNATURE )
 			title = L"Find signature or bytes";
+		else if ( prompt_mode == 1 )
+			title = L"Rename variable";
+		else if ( prompt_mode == 2 )
+			title = L"Set variable type";
+		else if ( prompt_mode == 3 )
+			title = L"Function prototype";
 
 		if ( prompt_action == command::FIND_SIGNATURE )
 			detail.add ( L"48 8B 05 ? ? ? ?   48 8B 05 ?? ??   \"\\x48\\x8B\" \"xx\"   or \"text\"" );
+		else if ( prompt_mode == 1 || prompt_mode == 2 ) {
+
+			wchar_t name [ 200 ];
+
+			detail.add ( prompt_key.get ( ) );
+
+			if ( symbol_name ( prompt_function, true, name, 200 ) )
+				detail.add ( L" in " ).add ( name );
+
+		} else if ( prompt_mode == 3 )
+			detail.add ( L"Return type, name and parameters. Empty resets to the inferred signature." );
 		else {
 
 			wchar_t name [ 200 ];
@@ -162,9 +180,17 @@ namespace ui {
 
 		uint64_t field_id = make_id ( "prompt" );
 
-		text_field ( field_id, prompt_field, math::rect ( box.x + 18.0f, box.y + 66.0f, box.w - 36.0f, 32.0f ), prompt_action == command::FIND_SIGNATURE ? L"Pattern" : ( prompt_action == command::COMMENT ? L"Comment, empty to remove" : L"New name, empty to reset" ), 0, prompt_action == command::FIND_SIGNATURE ? render::font::MONO : render::font::UI );
+		const wchar_t* hint = prompt_action == command::FIND_SIGNATURE ? L"Pattern" : ( prompt_action == command::COMMENT ? L"Comment, empty to remove" : L"New name, empty to reset" );
 
-		bool apply = field_submit && focus_id == field_id;
+		if ( prompt_mode == 2 )
+			hint = L"int32_t, char*, DWORD, MyStruct*  (empty resets)";
+		else if ( prompt_mode == 3 )
+			hint = L"int64_t name(int32_t count, char* text)";
+
+		bool apply = text_field ( field_id, prompt_field, math::rect ( box.x + 18.0f, box.y + 66.0f, box.w - 36.0f, 32.0f ), hint, 0, prompt_action == command::FIND_SIGNATURE || prompt_mode >= 2 ? render::font::MONO : render::font::UI );
+
+		if ( field_submit && focus_id == field_id )
+			apply = true;
 
 		if ( button ( make_id ( "prompt_ok" ), math::rect ( box.right ( ) - 196.0f, box.bottom ( ) - 42.0f, 86.0f, 30.0f ), prompt_action == command::FIND_SIGNATURE ? L"Find" : L"Apply", 0, true ) )
 			apply = true;

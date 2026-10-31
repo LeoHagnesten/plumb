@@ -177,6 +177,9 @@ namespace decompiler {
 		int32_t family_var [ 32 ];
 		uint32_t entry_live = 0;
 		int32_t params = 0;
+		bool has_prototype = false;
+		c_prototype prototype;
+		base::list < base::text > var_types;
 		uint8_t param_bits [ 16 ] = { };
 		bool returns_value = false;
 		bool returns_float = false;

@@ -7,8 +7,15 @@ namespace decompiler {
 		result* r = nullptr;
 		bool open = false;
 		bool terminal = false;
+		bool spaced = false;
 		int32_t indent = 0;
 		line current;
+
+		wchar_t last ( int32_t back = 1 ) const {
+
+			return r->text.count ( ) - back >= current.text ? r->text [ static_cast < size_t > ( r->text.count ( ) - back ) ] : 0;
+
+		}
 
 		void begin ( uint64_t address ) {
 
@@ -27,10 +34,45 @@ namespace decompiler {
 			if ( !open )
 				begin ( 0 );
 
+			bool structural = kind == syntax::PLAIN || kind == syntax::OPERATOR;
+
+			if ( spaced && !structural && kind != syntax::COMMENT && *text && last ( ) == L')' )
+				r->text.push ( L' ' );
+
 			int32_t start = r->text.count ( );
 
-			for ( ; *text; text++ )
-				r->text.push ( *text );
+			for ( ; *text; text++ ) {
+
+				wchar_t c = *text;
+
+				if ( spaced && structural && ( c == L'(' || c == L'[' ) ) {
+
+					wchar_t before = last ( );
+
+					if ( before && before != L' ' && before != L'(' && before != L'[' && before != L'!' && before != L'~' && before != L'*' && before != L'&' && before != L'-' )
+						r->text.push ( L' ' );
+
+					r->text.push ( c );
+					r->text.push ( L' ' );
+
+					continue;
+
+				}
+
+				if ( spaced && structural && ( c == L')' || c == L']' ) ) {
+
+					if ( last ( ) != L' ' )
+						r->text.push ( L' ' );
+
+					r->text.push ( c );
+
+					continue;
+
+				}
+
+				r->text.push ( c );
+
+			}
 
 			if ( kind != syntax::PLAIN && r->text.count ( ) > start ) {
 
@@ -83,6 +125,8 @@ namespace decompiler {
 
 		explicit emitter ( builder& owner ) : b ( owner ) {
 
+			out.spaced = owner.names && owner.names->spaced ( );
+
 		}
 
 		void hex ( uint64_t value, wchar_t* out_text ) {
@@ -107,6 +151,29 @@ namespace decompiler {
 		}
 
 		void var_name ( int32_t index, wchar_t* text ) {
+
+			default_name ( index, text );
+
+			const variable& item = b.vars [ static_cast < size_t > ( index ) ];
+			const wchar_t* user = b.names ? b.names->local_name ( b.function, text ) : nullptr;
+
+			if ( !user && item.kind == var_kind::PARAMETER && b.has_prototype && item.position >= 0 && item.position < b.prototype.count && b.prototype.names [ item.position ] [ 0 ] )
+				user = b.prototype.names [ item.position ];
+
+			if ( user ) {
+
+				int32_t length = 0;
+
+				for ( ; user [ length ] && length < 60; length++ )
+					text [ length ] = user [ length ];
+
+				text [ length ] = 0;
+
+			}
+
+		}
+
+		void default_name ( int32_t index, wchar_t* text ) {
 
 			const variable& item = b.vars [ static_cast < size_t > ( index ) ];
 			int32_t length = 0;
@@ -253,9 +320,17 @@ namespace decompiler {
 
 			const variable& item = b.vars [ static_cast < size_t > ( index ) ];
 
+			if ( index < b.var_types.count ( ) && !b.var_types [ static_cast < size_t > ( index ) ].empty ( ) ) {
+
+				out.put ( b.var_types [ static_cast < size_t > ( index ) ].get ( ), syntax::TYPE );
+
+				return;
+
+			}
+
 			if ( has_struct ( index ) ) {
 
-				wchar_t name [ 32 ];
+				wchar_t name [ 64 ];
 
 				var_name ( index, name );
 				out.put ( L"struct", syntax::KEYWORD );
@@ -437,21 +512,18 @@ namespace decompiler {
 
 		bool simple_constant ( int64_t value ) {
 
-			if ( value > -0x10000 && value < 0x10000 ) {
+			uint64_t magnitude = static_cast < uint64_t > ( value < 0 ? -value : value );
 
-				uint64_t magnitude = static_cast < uint64_t > ( value < 0 ? -value : value );
+			if ( magnitude >= 0x80000000ull )
+				return false;
 
-				if ( magnitude >= 0x100 && ( magnitude & ( magnitude - 1 ) ) == 0 )
-					return false;
+			if ( magnitude >= 0x100 && ( magnitude & ( magnitude - 1 ) ) == 0 )
+				return false;
 
-				if ( magnitude >= 0xFF && ( ( magnitude + 1 ) & magnitude ) == 0 )
-					return false;
+			if ( magnitude >= 0xFF && ( ( magnitude + 1 ) & magnitude ) == 0 )
+				return false;
 
-				return true;
-
-			}
-
-			return false;
+			return true;
 
 		}
 
@@ -504,7 +576,7 @@ namespace decompiler {
 		void lvalue_or_load ( const expr& item, int32_t parent ) {
 
 			const expr& where = b.exprs [ static_cast < size_t > ( item.a ) ];
-			wchar_t name [ 32 ];
+			wchar_t name [ 64 ];
 
 			if ( where.kind == op::ADDRESS && where.value >= 0 ) {
 
@@ -2067,6 +2139,55 @@ namespace decompiler {
 		body_emitter.dry = false;
 		body_emitter.out.indent = 1;
 		body_emitter.run ( );
+		body_emitter.dry = true;
+		b.var_types.resize ( b.vars.size ( ) );
+
+		bool typed = false;
+
+		for ( int32_t v = 0; v < b.vars.count ( ); v++ ) {
+
+			variable& item = b.vars [ static_cast < size_t > ( v ) ];
+
+			if ( item.kind == var_kind::REGISTER && body_emitter.var_number [ static_cast < size_t > ( v ) ] == 0 )
+				continue;
+
+			wchar_t key [ 64 ];
+			wchar_t clean [ 64 ];
+			c_type shape;
+			const wchar_t* declared = nullptr;
+
+			body_emitter.default_name ( v, key );
+
+			if ( b.names )
+				declared = b.names->local_type ( b.function, key );
+
+			if ( !declared && item.kind == var_kind::PARAMETER && b.has_prototype && item.position >= 0 && item.position < b.prototype.count )
+				declared = b.prototype.types [ item.position ];
+
+			if ( !declared || !parse_type ( declared, b.long_mode, shape, clean, 64 ) || shape.empty )
+				continue;
+
+			item.size = shape.size;
+			item.bits = static_cast < uint8_t > ( shape.bits );
+			b.var_types [ static_cast < size_t > ( v ) ].set ( clean );
+			typed = true;
+
+		}
+
+		body_emitter.dry = false;
+
+		if ( typed ) {
+
+			int32_t gotos = body_emitter.gotos;
+
+			body.text.clear ( );
+			body.spans.clear ( );
+			body.lines.clear ( );
+			body_emitter.out.indent = 1;
+			body_emitter.run ( );
+			body_emitter.gotos = gotos;
+
+		}
 
 		result& out = *b.out;
 		emitter head ( b );
@@ -2084,7 +2205,7 @@ namespace decompiler {
 			if ( !body_emitter.referenced [ static_cast < size_t > ( v ) ] )
 				continue;
 
-			wchar_t var [ 32 ];
+			wchar_t var [ 64 ];
 
 			head.var_name ( v, var );
 			head.out.begin ( 0 );
@@ -2132,7 +2253,14 @@ namespace decompiler {
 
 		head.out.begin ( b.function );
 
-		if ( b.returns_value ) {
+		if ( b.has_prototype ) {
+
+			if ( b.prototype.result_type.empty )
+				head.out.put ( L"void", syntax::KEYWORD );
+			else
+				head.out.put ( b.prototype.result, syntax::TYPE );
+
+		} else if ( b.returns_value ) {
 
 			if ( b.returns_float )
 				head.type_name ( b.return_size ? b.return_size : 4, FLOATING, false );
@@ -2168,12 +2296,22 @@ namespace decompiler {
 
 			if ( found >= 0 ) {
 
-				wchar_t var [ 32 ];
+				wchar_t var [ 64 ];
 
 				head.var_type ( found );
 				head.out.put ( L" " );
 				head.var_name ( found, var );
 				head.out.put ( var, syntax::PARAMETER );
+
+			} else if ( b.has_prototype && position < b.prototype.count ) {
+
+				head.out.put ( b.prototype.types [ position ], syntax::TYPE );
+				head.out.put ( L" " );
+
+				if ( b.prototype.names [ position ] [ 0 ] )
+					head.out.put ( b.prototype.names [ position ], syntax::PARAMETER );
+				else
+					head.out.put ( base::writer ( ).add ( L"a" ).number ( position + 1 ).text ( ), syntax::PARAMETER );
 
 			} else {
 
@@ -2182,6 +2320,15 @@ namespace decompiler {
 				head.out.put ( base::writer ( ).add ( L"a" ).number ( position + 1 ).text ( ), syntax::PARAMETER );
 
 			}
+
+		}
+
+		if ( b.has_prototype && b.prototype.variadic ) {
+
+			if ( shown_params++ )
+				head.out.put ( L", " );
+
+			head.out.put ( L"..." );
 
 		}
 
@@ -2207,7 +2354,7 @@ namespace decompiler {
 			if ( !body_emitter.referenced [ static_cast < size_t > ( v ) ] )
 				continue;
 
-			wchar_t var [ 32 ];
+			wchar_t var [ 64 ];
 
 			head.out.begin ( 0 );
 			head.var_type ( v );
@@ -2289,6 +2436,26 @@ namespace decompiler {
 		bool ok = b->lift ( );
 
 		if ( ok ) {
+
+			const wchar_t* declared = names.prototype ( function );
+
+			if ( declared ) {
+
+				base::writer problem;
+
+				if ( parse_prototype ( declared, b->long_mode, b->prototype, problem ) ) {
+
+					b->has_prototype = true;
+					b->params = b->prototype.count;
+					b->returns_value = !b->prototype.result_type.empty;
+					b->returns_float = ( b->prototype.result_type.bits & FLOATING ) != 0;
+
+					if ( b->returns_value )
+						b->return_size = b->prototype.result_type.size;
+
+				}
+
+			}
 
 			for ( const analysis::block& item : b->graph.blocks )
 				out.instructions += item.instructions;

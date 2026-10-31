@@ -212,6 +212,9 @@ namespace ui {
 		widget& item = state ( id );
 		bool focused_now = focus_id == id;
 
+		if ( focused_now )
+			focus_drawn = true;
+
 		interact ( id, area, item );
 
 		if ( item.hover > 0.5f )

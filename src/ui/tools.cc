@@ -3,11 +3,151 @@
 
 namespace ui {
 
+	void app::open_code_prompt ( command action, int32_t mode, const wchar_t* key, const wchar_t* fill ) {
+
+		prompt_open = true;
+		prompt_action = action;
+		prompt_mode = mode;
+		prompt_key.set ( key );
+		prompt_function = now->function;
+		prompt_address = now->function;
+		prompt_field = field ( );
+
+		int32_t i = 0;
+
+		for ( ; fill && fill [ i ] && i < 250; i++ )
+			prompt_field.text [ i ] = fill [ i ];
+
+		prompt_field.text [ i ] = 0;
+		prompt_field.length = i;
+		focus_field ( make_id ( "prompt" ), prompt_field, true );
+
+	}
+
+	bool app::code_variable ( wchar_t* key, wchar_t* shown ) const {
+
+		const decompiler::result* code = const_cast < app* > ( this )->pseudocode_for ( now->function );
+
+		if ( !code || now->code_line < 0 || now->code_line >= code->lines.count ( ) )
+			return false;
+
+		const decompiler::line& item = code->lines [ static_cast < size_t > ( now->code_line ) ];
+		int32_t column = now->code_col - item.indent * 4;
+
+		for ( int32_t s = 0; s < item.span_count; s++ ) {
+
+			const decompiler::span& part = code->spans [ static_cast < size_t > ( item.first_span + s ) ];
+			int32_t start = part.start - item.text;
+
+			if ( part.kind != decompiler::syntax::LOCAL && part.kind != decompiler::syntax::PARAMETER )
+				continue;
+
+			if ( column < start || column > start + part.length )
+				continue;
+
+			int32_t length = base::min ( part.length, 62 );
+
+			for ( int32_t k = 0; k < length; k++ )
+				shown [ k ] = code->text [ static_cast < size_t > ( part.start + k ) ];
+
+			shown [ length ] = 0;
+
+			for ( int32_t k = 0; k <= length; k++ )
+				key [ k ] = shown [ k ];
+
+			for ( const local_entry& entry : locals ) {
+
+				if ( entry.function == now->function && !entry.name.empty ( ) && base::same_text ( entry.name.get ( ), shown ) ) {
+
+					int32_t k = 0;
+
+					for ( const wchar_t* at = entry.key.get ( ); *at && k < 62; at++ )
+						key [ k++ ] = *at;
+
+					key [ k ] = 0;
+
+				}
+
+			}
+
+			return true;
+
+		}
+
+		return false;
+
+	}
+
+	const local_entry* app::local_for ( uint64_t function, const wchar_t* key ) const {
+
+		for ( const local_entry& entry : locals ) {
+
+			if ( entry.function == function && base::same_text ( entry.key.get ( ), key ) )
+				return &entry;
+
+		}
+
+		return nullptr;
+
+	}
+
+	const wchar_t* app::prototype_for ( uint64_t function ) const {
+
+		return prototypes.empty ( ) ? nullptr : user_text ( prototypes, function );
+
+	}
+
+	void app::set_local ( uint64_t function, const wchar_t* key, const wchar_t* name, const wchar_t* type ) {
+
+		local_entry* found = nullptr;
+
+		for ( local_entry& entry : locals ) {
+
+			if ( entry.function == function && base::same_text ( entry.key.get ( ), key ) )
+				found = &entry;
+
+		}
+
+		if ( !found ) {
+
+			found = &locals.emplace ( );
+			found->function = function;
+			found->key.set ( key );
+
+		}
+
+		if ( name )
+			found->name.set ( name );
+
+		if ( type )
+			found->type.set ( type );
+
+		if ( found->name.empty ( ) && found->type.empty ( ) ) {
+
+			for ( int32_t i = 0; i < locals.count ( ); i++ ) {
+
+				if ( &locals [ static_cast < size_t > ( i ) ] == found ) {
+
+					locals.remove_at ( static_cast < size_t > ( i ) );
+
+					break;
+
+				}
+
+			}
+
+		}
+
+		names_revision++;
+
+	}
+
 	void app::open_prompt ( command action, uint64_t address ) {
 
 		prompt_open = true;
 		prompt_action = action;
 		prompt_address = address;
+		prompt_mode = 0;
 		prompt_field = field ( );
 
 		const wchar_t* fill = nullptr;
@@ -78,6 +218,16 @@ namespace ui {
 
 				}
 
+				if ( prompt_mode == 1 ) {
+
+					set_local ( prompt_function, prompt_key.get ( ), text, nullptr );
+					save_project ( );
+					log ( log_kind::INFO, length ? base::writer ( ).add ( L"Renamed " ).add ( prompt_key.get ( ) ).add ( L" to " ).add ( text ).text ( ) : L"Variable name reset." );
+
+					break;
+
+				}
+
 				set_user_text ( renamed, prompt_address, text );
 				refresh_filter ( panel::FUNCTIONS );
 				save_project ( );
@@ -92,6 +242,89 @@ namespace ui {
 			case command::FIND_SIGNATURE:
 				find_signature ( text );
 				break;
+
+			case command::SET_TYPE: {
+
+				if ( prompt_mode == 2 ) {
+
+					if ( !length ) {
+
+						set_local ( prompt_function, prompt_key.get ( ), nullptr, L"" );
+						log ( log_kind::INFO, L"Type reset to what the decompiler inferred." );
+
+					} else {
+
+						decompiler::c_type shape;
+						wchar_t clean [ 64 ];
+
+						if ( !decompiler::parse_type ( text, file.wide ( ), shape, clean, 64 ) || shape.empty ) {
+
+							log ( log_kind::WARN, base::writer ( ).add ( L"Couldn't read the type \"" ).add ( text ).add ( L"\". Try int32_t, uint8_t*, DWORD, double or a struct pointer." ).text ( ) );
+
+							return;
+
+						}
+
+						if ( shape.custom )
+							log ( log_kind::WARN, base::writer ( ).add ( clean ).add ( L" isn't a known type, so it's treated as a pointer-sized integer." ).text ( ) );
+
+						set_local ( prompt_function, prompt_key.get ( ), nullptr, clean );
+						log ( log_kind::INFO, base::writer ( ).add ( prompt_key.get ( ) ).add ( L" is now " ).add ( clean ).add ( L"." ).text ( ) );
+
+					}
+
+					save_project ( );
+
+					break;
+
+				}
+
+				if ( !length ) {
+
+					set_user_text ( prototypes, prompt_function, L"" );
+					log ( log_kind::INFO, L"Prototype reset to what the decompiler inferred." );
+					save_project ( );
+
+					break;
+
+				}
+
+				decompiler::c_prototype shape;
+				base::writer problem;
+
+				if ( !decompiler::parse_prototype ( text, file.wide ( ), shape, problem ) ) {
+
+					log ( log_kind::WARN, problem.text ( ) );
+
+					return;
+
+				}
+
+				set_user_text ( prototypes, prompt_function, text );
+
+				if ( shape.name [ 0 ] ) {
+
+					wchar_t current [ 200 ];
+
+					if ( !symbol_name ( prompt_function, true, current, 200 ) || !base::same_text ( current, shape.name ) )
+						set_user_text ( renamed, prompt_function, shape.name );
+
+				}
+
+				for ( int32_t i = 0; i < shape.count; i++ ) {
+
+					if ( shape.params [ i ].custom )
+						log ( log_kind::WARN, base::writer ( ).add ( shape.types [ i ] ).add ( L" isn't a known type, so it's treated as a pointer-sized integer." ).text ( ) );
+
+				}
+
+				refresh_filter ( panel::FUNCTIONS );
+				save_project ( );
+				log ( log_kind::GOOD, base::writer ( ).add ( L"Prototype applied: " ).number ( shape.count ).add ( shape.count == 1 ? L" argument" : L" arguments" ).add ( shape.variadic ? L" plus varargs" : L"" ).add ( L". Callers decompile with the new signature." ).text ( ) );
+
+				break;
+
+			}
 
 			default:
 				break;

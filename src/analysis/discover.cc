@@ -1006,6 +1006,25 @@ namespace analysis {
 				uint8_t before = offset ? file.data [ map.offset + offset - 1 ] : 0xCC;
 				bool boundary = !offset || before == 0xCC || before == 0x90 || before == 0xC3 || atomic_test ( map.covered, offset - 1 );
 
+				if ( !boundary ) {
+
+					for ( int32_t side = -1; side <= 1 && !boundary; side += 2 ) {
+
+						int64_t neighbor = static_cast < int64_t > ( p ) + side * static_cast < int64_t > ( step );
+
+						if ( neighbor < 0 || static_cast < uint64_t > ( neighbor ) + step > raw )
+							continue;
+
+						uint64_t other = step == 8 ? file.read64 ( item.offset + static_cast < uint64_t > ( neighbor ) ) : file.read32 ( item.offset + static_cast < uint64_t > ( neighbor ) );
+						int32_t other_map = db.map_of ( other );
+
+						if ( other_map >= 0 && other != value && other - db.maps [ static_cast < size_t > ( other_map ) ].start < db.maps [ static_cast < size_t > ( other_map ) ].decodable )
+							boundary = true;
+
+					}
+
+				}
+
 				if ( boundary )
 					seeds.push ( value );
 
