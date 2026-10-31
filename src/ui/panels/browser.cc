@@ -3,9 +3,9 @@
 
 namespace ui {
 
-	static const uint32_t panel_glyphs [ static_cast < int32_t > ( panel::COUNT ) ] = { icons::CODE, icons::IMPORT, icons::EXPORT, icons::FONT, icons::LAYERS, icons::PUZZLE, icons::LINK, icons::SEARCH };
-	static const wchar_t* panel_titles [ static_cast < int32_t > ( panel::COUNT ) ] = { L"Functions", L"Imports", L"Exports", L"Strings", L"Sections", L"Classes", L"References", L"Search" };
-	static const wchar_t* panel_hints [ static_cast < int32_t > ( panel::COUNT ) ] = { L"Filter functions", L"Filter imports or modules", L"Filter exports", L"Search strings", L"Filter sections", L"Filter classes", L"Filter by function", L"Filter results" };
+	static const uint32_t panel_glyphs [ static_cast < int32_t > ( panel::COUNT ) ] = { icons::CODE, icons::IMPORT, icons::EXPORT, icons::FONT, icons::LAYERS, icons::PUZZLE, icons::FORM, icons::LINK, icons::SEARCH };
+	static const wchar_t* panel_titles [ static_cast < int32_t > ( panel::COUNT ) ] = { L"Functions", L"Imports", L"Exports", L"Strings", L"Sections", L"Classes", L"Structures", L"References", L"Search" };
+	static const wchar_t* panel_hints [ static_cast < int32_t > ( panel::COUNT ) ] = { L"Filter functions", L"Filter imports or modules", L"Filter exports", L"Search strings", L"Filter sections", L"Filter classes", L"Filter structures", L"Filter by function", L"Filter results" };
 
 	static const wchar_t* ref_word ( analysis::ref type ) {
 
@@ -125,6 +125,10 @@ namespace ui {
 
 			case panel::CLASSES:
 				total = db && analysis_applied ? db->classes.count ( ) : 0;
+				break;
+
+			case panel::STRUCTS:
+				total = structs.count ( ) + 1;
 				break;
 
 			case panel::REFERENCES:
@@ -315,6 +319,56 @@ namespace ui {
 
 									if ( file.offset_of ( slot, offset ) )
 										go ( file.wide ( ) ? file.read64 ( offset ) : file.read32 ( offset ), true );
+
+								}
+
+								return;
+
+							}
+
+							case panel::STRUCTS: {
+
+								if ( value == -2 ) {
+
+									open_struct_prompt ( 6, -1, 0, L"" );
+
+									return;
+
+								}
+
+								int32_t owner = value / 4096;
+								int32_t child = value % 4096;
+
+								if ( owner >= structs.count ( ) )
+									return;
+
+								const user_struct& info = structs [ static_cast < size_t > ( owner ) ];
+
+								if ( child == 0 ) {
+
+									if ( mouse.x > row.right ( ) - 30.0f )
+										open_struct_prompt ( 9, owner, 0, info.name.get ( ) );
+									else {
+
+										expanded_struct = expanded_struct == owner ? -1 : owner;
+										refresh_filter ( panel::STRUCTS );
+
+									}
+
+								} else if ( child == 4095 ) {
+
+									base::writer fill;
+
+									fill.add ( L"+0x" ).hex ( static_cast < uint64_t > ( struct_size ( owner ) ) ).add ( L" int32_t field_" ).hex ( static_cast < uint64_t > ( struct_size ( owner ) ) );
+									open_struct_prompt ( 8, owner, struct_size ( owner ), fill.text ( ) );
+
+								} else if ( child - 1 < info.fields.count ( ) ) {
+
+									const user_field& field = info.fields [ static_cast < size_t > ( child - 1 ) ];
+									base::writer fill;
+
+									fill.add ( field.type.get ( ) ).add ( L" " ).add ( field.name.get ( ) );
+									open_struct_prompt ( 7, owner, field.offset, fill.text ( ) );
 
 								}
 
@@ -517,6 +571,56 @@ namespace ui {
 
 							if ( symbol_name ( target, true, name, 200 ) )
 								c.text ( name, render::font::MONO_SMALL, math::vec2 ( row.x + 62.0f, cy ), ink ( tone::FUNCTION ), render::align::LEFT, row.w - 70.0f );
+
+						}
+
+						break;
+
+					}
+
+					case panel::STRUCTS: {
+
+						if ( value == -2 ) {
+
+							c.icon ( icons::ADD, math::vec2 ( row.x + 12.0f, cy ), 10.0f, ink ( tone::ACCENT ) );
+							c.text ( L"New struct", render::font::UI, math::vec2 ( row.x + 26.0f, cy ), ink ( tone::ACCENT ) );
+
+							break;
+
+						}
+
+						int32_t owner = value / 4096;
+						int32_t child = value % 4096;
+
+						if ( owner >= structs.count ( ) )
+							break;
+
+						const user_struct& info = structs [ static_cast < size_t > ( owner ) ];
+
+						if ( child == 0 ) {
+
+							base::writer size_text;
+
+							c.icon ( owner == expanded_struct ? icons::CHEVRON_DOWN : icons::CHEVRON_RIGHT, math::vec2 ( row.x + 11.0f, cy ), 9.0f, ink ( owner == expanded_struct ? tone::ACCENT : tone::INK_FAINT ) );
+							c.text ( info.name.get ( ), render::font::MONO_SMALL, math::vec2 ( row.x + 24.0f, cy ), ink ( tone::TYPE ), render::align::LEFT, row.w - 120.0f );
+							size_text.add ( L"0x" ).hex ( static_cast < uint64_t > ( struct_size ( owner ) ) ).add ( L" bytes" );
+							c.text ( size_text.text ( ), render::font::SMALL, math::vec2 ( row.right ( ) - 34.0f, cy ), ink ( tone::INK_FAINT ), render::align::RIGHT );
+							c.icon ( icons::PENCIL, math::vec2 ( row.right ( ) - 16.0f, cy ), 10.0f, ink ( tone::INK_FAINT ) );
+
+						} else if ( child == 4095 ) {
+
+							c.icon ( icons::ADD, math::vec2 ( row.x + 30.0f, cy ), 9.0f, ink ( tone::INK_FAINT ) );
+							c.text ( L"add field", render::font::SMALL, math::vec2 ( row.x + 42.0f, cy ), ink ( tone::INK_FAINT ) );
+
+						} else if ( child - 1 < info.fields.count ( ) ) {
+
+							const user_field& field = info.fields [ static_cast < size_t > ( child - 1 ) ];
+							base::writer where;
+
+							where.add ( L"+" ).hex ( static_cast < uint64_t > ( field.offset ) );
+							c.text ( where.text ( ), render::font::MONO_SMALL, math::vec2 ( row.x + 26.0f, cy ), ink ( tone::INK_FAINT ) );
+							c.text ( field.type.get ( ), render::font::MONO_SMALL, math::vec2 ( row.x + 70.0f, cy ), ink ( tone::TYPE ), render::align::LEFT, 100.0f );
+							c.text ( field.name.get ( ), render::font::MONO_SMALL, math::vec2 ( row.x + 176.0f, cy ), ink ( tone::GLOBAL ), render::align::LEFT, row.w - 184.0f );
 
 						}
 

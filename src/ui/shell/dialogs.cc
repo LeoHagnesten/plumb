@@ -142,6 +142,18 @@ namespace ui {
 			title = L"Set variable type";
 		else if ( prompt_mode == 3 )
 			title = L"Function prototype";
+		else if ( prompt_mode == 4 )
+			title = L"Rename field";
+		else if ( prompt_mode == 5 )
+			title = L"Field type";
+		else if ( prompt_mode == 6 )
+			title = prompt_from_var ? L"Make struct from variable" : L"New struct";
+		else if ( prompt_mode == 7 )
+			title = L"Edit field";
+		else if ( prompt_mode == 8 )
+			title = L"Add field";
+		else if ( prompt_mode == 9 )
+			title = L"Rename struct";
 
 		if ( prompt_action == command::FIND_SIGNATURE )
 			detail.add ( L"48 8B 05 ? ? ? ?   48 8B 05 ?? ??   \"\\x48\\x8B\" \"xx\"   or \"text\"" );
@@ -156,6 +168,20 @@ namespace ui {
 
 		} else if ( prompt_mode == 3 )
 			detail.add ( L"Return type, name and parameters. Empty resets to the inferred signature." );
+		else if ( prompt_mode >= 4 && prompt_mode <= 9 ) {
+
+			if ( prompt_mode == 6 )
+				detail.add ( prompt_from_var ? L"Fields come from how the variable is used. The variable becomes a pointer to it." : L"Add fields from the Structures panel, then type a variable as Name* with Y." );
+			else if ( prompt_mode == 7 )
+				detail.add ( L"Type and name, like  float speed,  char name[32]  or  Player* owner. Empty deletes it." );
+			else if ( prompt_mode == 8 )
+				detail.add ( L"Optional +offset, then type and name. Built-in types or your own structs." );
+			else if ( prompt_mode == 9 )
+				detail.add ( L"Empty deletes the struct." );
+			else if ( prompt_struct >= 0 && prompt_struct < structs.count ( ) )
+				detail.add ( structs [ static_cast < size_t > ( prompt_struct ) ].name.get ( ) ).add ( L" +0x" ).hex ( static_cast < uint64_t > ( prompt_offset ) );
+
+		}
 		else {
 
 			wchar_t name [ 200 ];
@@ -186,6 +212,10 @@ namespace ui {
 			hint = L"int32_t, char*, DWORD, MyStruct*  (empty resets)";
 		else if ( prompt_mode == 3 )
 			hint = L"int64_t name(int32_t count, char* text)";
+		else if ( prompt_mode == 6 || prompt_mode == 9 )
+			hint = L"Struct name";
+		else if ( prompt_mode == 7 || prompt_mode == 8 )
+			hint = L"+0x10 int32_t health";
 
 		bool apply = text_field ( field_id, prompt_field, math::rect ( box.x + 18.0f, box.y + 66.0f, box.w - 36.0f, 32.0f ), hint, 0, prompt_action == command::FIND_SIGNATURE || prompt_mode >= 2 ? render::font::MONO : render::font::UI );
 

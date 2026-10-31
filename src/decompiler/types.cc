@@ -154,6 +154,7 @@ namespace decompiler {
 		bool sized_pointer = false;
 		bool handle = false;
 		bool custom = false;
+		const wchar_t* custom_word = nullptr;
 		int32_t length = 0;
 
 		for ( int32_t i = from; i < to; i++ ) {
@@ -217,8 +218,12 @@ namespace decompiler {
 
 				}
 
-				if ( !named )
+				if ( !named ) {
+
 					custom = true;
+					custom_word = word;
+
+				}
 
 			}
 
@@ -232,11 +237,35 @@ namespace decompiler {
 		if ( !length )
 			return false;
 
+		out.stars = stars;
+
+		if ( custom_word ) {
+
+			int32_t k = 0;
+
+			for ( ; custom_word [ k ] && k < 47; k++ )
+				out.custom_name [ k ] = custom_word [ k ];
+
+			out.custom_name [ k ] = 0;
+
+		}
+
 		if ( stars || handle ) {
 
 			out.size = pointer_size;
 			out.bits = POINTER | UNSIGNED;
 			out.pointer = true;
+
+			if ( custom_word && stars == 1 ) {
+
+				int32_t k = 0;
+
+				for ( ; custom_word [ k ] && k < 47; k++ )
+					out.pointee [ k ] = custom_word [ k ];
+
+				out.pointee [ k ] = 0;
+
+			}
 
 			return true;
 

@@ -74,68 +74,11 @@ namespace ui {
 
 	}
 
-	void app::save_project ( ) {
+	void app::serialize_project ( base::list < char >& out ) const {
 
-		if ( !persist || !file.loaded ( ) )
-			return;
-
-		base::list < char > out;
-		wchar_t path [ 600 ];
 		char utf8 [ 1200 ];
 
-		auto write_list = [ & ] ( const char* key, const base::list < user_name >& list ) {
-
-			for ( const user_name& item : list ) {
-
-				base::writer line;
-
-				line.hex ( item.address ).add ( L" " ).add ( item.text.get ( ) );
-
-				for ( const char* at = key; *at; at++ )
-					out.push ( *at );
-
-				out.push ( ' ' );
-
-				int32_t length = WideCharToMultiByte ( CP_UTF8, 0, line.text ( ), line.size ( ), utf8, 1199, nullptr, nullptr );
-
-				for ( int32_t i = 0; i < length; i++ )
-					out.push ( utf8 [ i ] == '\n' ? ' ' : utf8 [ i ] );
-
-				out.push ( '\n' );
-
-			}
-
-		};
-
-		write_list ( "name", renamed );
-		write_list ( "comment", comments );
-		write_list ( "bookmark", bookmarks );
-		write_list ( "number", number_forms );
-		write_list ( "proto", prototypes );
-
-		for ( uint64_t item : breakpoints ) {
-
-			const char* prefix = "bp ";
-
-			for ( const char* at = prefix; *at; at++ )
-				out.push ( *at );
-
-			base::writer line;
-
-			line.hex ( item ).add ( L" on" );
-
-			for ( int32_t i = 0; i < line.size ( ); i++ )
-				out.push ( static_cast < char > ( line.text ( ) [ i ] ) );
-
-			out.push ( '\n' );
-
-		}
-
-		for ( const local_entry& entry : locals ) {
-
-			base::writer line;
-
-			line.add ( L"local " ).hex ( entry.function ).add ( L" " ).add ( entry.key.get ( ) ).add ( L" " ).add ( entry.name.empty ( ) ? L"-" : entry.name.get ( ) ).add ( L" " ).add ( entry.type.get ( ) );
+		auto push_line = [ & ] ( const base::writer& line ) {
 
 			int32_t length = WideCharToMultiByte ( CP_UTF8, 0, line.text ( ), line.size ( ), utf8, 1199, nullptr, nullptr );
 
@@ -144,22 +87,67 @@ namespace ui {
 
 			out.push ( '\n' );
 
+		};
+
+		auto write_list = [ & ] ( const wchar_t* key, const base::list < user_name >& list ) {
+
+			for ( const user_name& item : list ) {
+
+				base::writer line;
+
+				line.add ( key ).add ( L" " ).hex ( item.address ).add ( L" " ).add ( item.text.get ( ) );
+				push_line ( line );
+
+			}
+
+		};
+
+		write_list ( L"name", renamed );
+		write_list ( L"comment", comments );
+		write_list ( L"bookmark", bookmarks );
+		write_list ( L"number", number_forms );
+		write_list ( L"proto", prototypes );
+
+		for ( uint64_t item : breakpoints ) {
+
+			base::writer line;
+
+			line.add ( L"bp " ).hex ( item ).add ( L" on" );
+			push_line ( line );
+
 		}
-		project_path ( file, path, 600 );
 
-		if ( out.empty ( ) ) {
+		for ( const local_entry& entry : locals ) {
 
-			DeleteFileW ( path );
+			base::writer line;
 
-			return;
+			line.add ( L"local " ).hex ( entry.function ).add ( L" " ).add ( entry.key.get ( ) ).add ( L" " ).add ( entry.name.empty ( ) ? L"-" : entry.name.get ( ) ).add ( L" " ).add ( entry.type.get ( ) );
+			push_line ( line );
 
 		}
 
-		files::write_later ( path, out.data ( ), out.count ( ) );
+		for ( int32_t i = 0; i < structs.count ( ); i++ ) {
+
+			const user_struct& item = structs [ static_cast < size_t > ( i ) ];
+			base::writer line;
+
+			line.add ( L"struct " ).hex ( static_cast < uint64_t > ( i ) ).add ( L" " ).add ( item.name.get ( ) );
+			push_line ( line );
+
+			for ( const user_field& field : item.fields ) {
+
+				base::writer entry;
+
+				entry.add ( L"field " ).hex ( static_cast < uint64_t > ( i ) ).add ( L" " ).hex ( static_cast < uint64_t > ( field.offset ) ).add ( L" " ).add ( field.name.get ( ) ).add ( L" " ).add ( field.type.get ( ) );
+				push_line ( entry );
+
+			}
+
+		}
 
 	}
 
-	void app::load_project ( ) {
+	void app::apply_project ( const char* data ) {
 
 		renamed.clear ( );
 		comments.clear ( );
@@ -168,21 +156,11 @@ namespace ui {
 		prototypes.clear ( );
 		locals.clear ( );
 		breakpoints.clear ( );
+		structs.clear ( );
 
-		if ( !file.loaded ( ) )
-			return;
+		const char* cursor = data;
 
-		wchar_t path [ 600 ];
-		base::list < char > data;
-
-		project_path ( file, path, 600 );
-
-		if ( !files::read ( path, data ) )
-			return;
-
-		const char* cursor = data.data ( );
-
-		while ( *cursor ) {
+		while ( cursor && *cursor ) {
 
 			const char* line = cursor;
 
@@ -199,6 +177,9 @@ namespace ui {
 
 			wide [ made > 0 ? made : 0 ] = 0;
 
+			while ( made > 0 && wide [ made - 1 ] == L'\r' )
+				wide [ --made ] = 0;
+
 			wchar_t* at = wide;
 			wchar_t* key = at;
 
@@ -209,6 +190,9 @@ namespace ui {
 				continue;
 
 			*at++ = 0;
+
+			if ( base::same_text ( key, L"file" ) )
+				continue;
 
 			uint64_t address = 0;
 
@@ -223,8 +207,19 @@ namespace ui {
 			if ( *at == L' ' )
 				at++;
 
-			while ( made > 0 && ( wide [ made - 1 ] == L'\r' ) )
-				wide [ --made ] = 0;
+			auto take_word = [ & ] ( ) {
+
+				wchar_t* start = at;
+
+				while ( *at && *at != L' ' )
+					at++;
+
+				if ( *at )
+					*at++ = 0;
+
+				return start;
+
+			};
 
 			if ( base::same_text ( key, L"name" ) )
 				set_user_text ( renamed, address, at );
@@ -240,37 +235,209 @@ namespace ui {
 				breakpoints.push ( address );
 			else if ( base::same_text ( key, L"local" ) ) {
 
-				wchar_t* name = at;
+				wchar_t* local_key = take_word ( );
+				wchar_t* name = take_word ( );
 
-				while ( *name && *name != L' ' )
-					name++;
-
-				if ( !*name )
+				if ( !local_key [ 0 ] )
 					continue;
-
-				*name++ = 0;
-
-				wchar_t* type = name;
-
-				while ( *type && *type != L' ' )
-					type++;
-
-				if ( *type )
-					*type++ = 0;
 
 				local_entry& entry = locals.emplace ( );
 
 				entry.function = address;
-				entry.key.set ( at );
+				entry.key.set ( local_key );
 
 				if ( !base::same_text ( name, L"-" ) )
 					entry.name.set ( name );
 
-				entry.type.set ( type );
+				entry.type.set ( at );
+
+			} else if ( base::same_text ( key, L"struct" ) ) {
+
+				if ( address > 4096 )
+					continue;
+
+				while ( structs.count ( ) <= static_cast < int32_t > ( address ) )
+					structs.emplace ( );
+
+				structs [ static_cast < size_t > ( address ) ].name.set ( at );
+
+			} else if ( base::same_text ( key, L"field" ) ) {
+
+				if ( address >= static_cast < uint64_t > ( structs.count ( ) ) )
+					continue;
+
+				wchar_t* offset_text = take_word ( );
+				wchar_t* name = take_word ( );
+				uint64_t offset = 0;
+
+				for ( wchar_t* c = offset_text; *c; c++ )
+					offset = ( offset << 4 ) | static_cast < uint64_t > ( *c >= L'a' ? *c - L'a' + 10 : ( *c >= L'A' ? *c - L'A' + 10 : *c - L'0' ) );
+
+				add_field ( static_cast < int32_t > ( address ), static_cast < int32_t > ( offset ), name, at );
 
 			}
 
 		}
+
+		names_revision++;
+		refresh_filter ( panel::STRUCTS );
+
+	}
+
+	void app::save_project ( ) {
+
+		if ( !persist || !file.loaded ( ) )
+			return;
+
+		base::list < char > out;
+		wchar_t path [ 600 ];
+		char utf8 [ 1200 ];
+
+		serialize_project ( out );
+		project_path ( file, path, 600 );
+
+		if ( !project_file.empty ( ) ) {
+
+			base::list < char > shared;
+			base::writer head;
+
+			head.add ( L"file " ).add ( file.path.get ( ) ).add ( L"\n" );
+
+			int32_t length = WideCharToMultiByte ( CP_UTF8, 0, head.text ( ), head.size ( ), utf8, 1199, nullptr, nullptr );
+
+			for ( int32_t i = 0; i < length; i++ )
+				shared.push ( utf8 [ i ] );
+
+			for ( char c : out )
+				shared.push ( c );
+
+			files::write_later ( project_file.get ( ), shared.data ( ), shared.count ( ) );
+
+		}
+
+		if ( out.empty ( ) ) {
+
+			DeleteFileW ( path );
+
+			return;
+
+		}
+
+		files::write_later ( path, out.data ( ), out.count ( ) );
+
+	}
+
+	void app::load_project ( ) {
+
+		apply_project ( nullptr );
+		undo_stack.clear ( );
+		redo_stack.clear ( );
+
+		if ( !file.loaded ( ) )
+			return;
+
+		wchar_t path [ 600 ];
+		base::list < char > data;
+
+		project_path ( file, path, 600 );
+
+		if ( project_file.empty ( ) ) {
+
+			base::writer beside;
+
+			beside.add ( file.path.get ( ) ).add ( L".plumb" );
+
+			if ( GetFileAttributesW ( beside.text ( ) ) != INVALID_FILE_ATTRIBUTES )
+				project_file.set ( beside.text ( ) );
+
+		}
+
+		if ( !( !project_file.empty ( ) && files::read ( project_file.get ( ), data ) ) && !files::read ( path, data ) )
+			return;
+
+		data.push ( 0 );
+		apply_project ( data.data ( ) );
+
+	}
+
+	void app::changed ( ) {
+
+		dirty = true;
+
+		if ( autosave ) {
+
+			save_project ( );
+			dirty = false;
+
+		}
+
+	}
+
+	bool app::confirm_discard ( ) {
+
+		if ( !dirty || !file.loaded ( ) || !window || !persist )
+			return true;
+
+		base::writer question;
+
+		question.add ( L"Save your changes to " ).add ( file.name.get ( ) ).add ( L" before closing it?" );
+
+		int answer = MessageBoxW ( static_cast < HWND > ( window ), question.text ( ), L"Plumb", MB_YESNOCANCEL | MB_ICONWARNING );
+
+		if ( answer == IDCANCEL )
+			return false;
+
+		if ( answer == IDYES )
+			run ( command::SAVE_PROJECT );
+
+		dirty = false;
+
+		return true;
+
+	}
+
+	bool app::can_close ( ) {
+
+		return confirm_discard ( );
+
+	}
+
+	void app::remember_undo ( ) {
+
+		base::list < char >& snapshot = undo_stack.emplace ( );
+
+		serialize_project ( snapshot );
+		snapshot.push ( 0 );
+		redo_stack.clear ( );
+
+		if ( undo_stack.count ( ) > 200 )
+			undo_stack.remove_at ( 0 );
+
+	}
+
+	void app::undo ( bool forward ) {
+
+		base::list < base::list < char > >& from = forward ? redo_stack : undo_stack;
+		base::list < base::list < char > >& to = forward ? undo_stack : redo_stack;
+
+		if ( from.empty ( ) ) {
+
+			log ( log_kind::INFO, forward ? L"Nothing to redo." : L"Nothing to undo." );
+
+			return;
+
+		}
+
+		base::list < char >& current = to.emplace ( );
+
+		serialize_project ( current );
+		current.push ( 0 );
+		apply_project ( from.back ( ).data ( ) );
+		from.pop ( );
+		sync_breakpoints ( );
+		refresh_filter ( panel::FUNCTIONS );
+		changed ( );
+		log ( log_kind::INFO, forward ? L"Redone." : L"Undone." );
 
 	}
 
@@ -299,6 +466,7 @@ namespace ui {
 
 		put_line ( out, "theme", light ? L"light" : L"dark" );
 		put_line ( out, "c_spaced", c_spaced ? L"1" : L"0" );
+		put_line ( out, "autosave", autosave ? L"1" : L"0" );
 		put_line ( out, "opcode_bytes", show_bytes ? L"1" : L"0" );
 		value.number ( static_cast < int64_t > ( dock_size [ 0 ] ) ).add ( L',' ).number ( static_cast < int64_t > ( dock_size [ 1 ] ) ).add ( L',' ).number ( static_cast < int64_t > ( dock_size [ 2 ] ) );
 		put_line ( out, "dock_sizes", value.text ( ) );
@@ -420,6 +588,8 @@ namespace ui {
 				light = base::same_text ( value, L"light" );
 			else if ( named ( "c_spaced" ) )
 				c_spaced = value [ 0 ] == L'1';
+			else if ( named ( "autosave" ) )
+				autosave = value [ 0 ] == L'1';
 			else if ( named ( "opcode_bytes" ) )
 				show_bytes = value [ 0 ] == L'1';
 			else if ( named ( "dock_sizes" ) || named ( "docks" ) ) {

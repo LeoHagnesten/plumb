@@ -180,6 +180,7 @@ namespace decompiler {
 		bool has_prototype = false;
 		c_prototype prototype;
 		base::list < base::text > var_types;
+		base::list < base::text > var_structs;
 		uint8_t param_bits [ 16 ] = { };
 		bool returns_value = false;
 		bool returns_float = false;

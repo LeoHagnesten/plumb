@@ -94,6 +94,38 @@ namespace ui {
 		}
 
 		float squeeze = total > room ? room / total : 1.0f;
+		float scan = x;
+
+		for ( int32_t t = 0; t < item.count; t++ ) {
+
+			tab_label ( documents [ item.tabs [ t ] ] );
+
+			float slot_w = base::max ( ( base::min ( c.measure ( label, render::font::UI ), 220.0f ) + 56.0f ) * squeeze, 64.0f );
+
+			if ( item.active == t ) {
+
+				active_x = scan;
+				active_w = slot_w;
+
+			}
+
+			scan += slot_w;
+
+		}
+
+		if ( !item.tab_ready ) {
+
+			item.tab_x = active_x;
+			item.tab_w = active_w;
+			item.tab_ready = true;
+
+		}
+
+		spring ( item.tab_x, item.tab_vx, active_x, 460.0f, 42.9f );
+		spring ( item.tab_w, item.tab_vw, active_w, 460.0f, 42.9f );
+
+		if ( item.count )
+			c.fill ( math::rect ( item.tab_x + 2.0f, area.y + 4.0f, base::max ( item.tab_w - 4.0f, 0.0f ), area.h - 9.0f ), 4.0f, ink ( tone::BASE ).fade ( 0.7f ) );
 
 		for ( int32_t t = 0; t < item.count; t++ ) {
 
@@ -114,25 +146,20 @@ namespace ui {
 			if ( middle_id == id )
 				close_tab = t;
 
-			if ( selected ) {
-
-				active_x = slot.x;
-				active_w = slot.w;
-
-			}
-
 			bool inside = over ( slot ) && menu_open < 0;
+			widget& lit = state ( make_id ( "tab_lit", static_cast < int64_t > ( doc.serial ) ) );
 
 			approach ( state_item.value, inside ? 1.0f : 0.0f, 22.0f );
+			approach ( lit.value, selected ? 1.0f : 0.0f, 20.0f );
 
 			float lift = state_item.value;
+			float on = lit.value;
 
-			if ( selected )
-				c.fill ( math::rect ( slot.x + 2.0f, slot.y + 4.0f, slot.w - 4.0f, slot.h - 8.0f ), 4.0f, ink ( tone::BASE ).fade ( 0.7f ) );
+			if ( !selected )
+				c.fill ( math::rect ( slot.x + 2.0f, slot.y + 4.0f, slot.w - 4.0f, slot.h - 8.0f ), 4.0f, ink ( tone::HOVER ).fade ( lift * 2.4f ) );
 
-			c.fill ( math::rect ( slot.x + 2.0f, slot.y + 4.0f, slot.w - 4.0f, slot.h - 8.0f ), 4.0f, ink ( tone::HOVER ).fade ( lift * 2.4f ) );
-			c.icon ( view_glyphs [ static_cast < int32_t > ( doc.kind ) ], math::vec2 ( slot.x + 16.0f, slot.center ( ).y ), 12.0f, selected ? ink ( tone::ACCENT ) : render::mix ( ink ( tone::INK_FAINT ), ink ( tone::INK_SOFT ), lift ) );
-			c.text ( label, render::font::UI, math::vec2 ( slot.x + 30.0f, slot.center ( ).y ), selected ? ink ( tone::INK ) : render::mix ( ink ( tone::INK_SOFT ), ink ( tone::INK ), lift ), render::align::LEFT, slot.w - 54.0f );
+			c.icon ( view_glyphs [ static_cast < int32_t > ( doc.kind ) ], math::vec2 ( slot.x + 16.0f, slot.center ( ).y ), 12.0f, render::mix ( render::mix ( ink ( tone::INK_FAINT ), ink ( tone::INK_SOFT ), lift ), ink ( tone::ACCENT ), on ) );
+			c.text ( label, render::font::UI, math::vec2 ( slot.x + 30.0f, slot.center ( ).y ), render::mix ( render::mix ( ink ( tone::INK_SOFT ), ink ( tone::INK ), lift ), ink ( tone::INK ), on ), render::align::LEFT, slot.w - 54.0f );
 
 			float reveal = selected ? base::max ( 0.6f, lift ) : lift;
 
@@ -159,16 +186,6 @@ namespace ui {
 
 		}
 
-		if ( !item.tab_ready ) {
-
-			item.tab_x = active_x;
-			item.tab_w = active_w;
-			item.tab_ready = true;
-
-		}
-
-		spring ( item.tab_x, item.tab_vx, active_x, 520.0f, 42.0f );
-		spring ( item.tab_w, item.tab_vw, active_w, 520.0f, 42.0f );
 		c.fill ( math::rect ( item.tab_x + 8.0f, area.bottom ( ) - 2.5f, base::max ( item.tab_w - 16.0f, 0.0f ), 2.0f ), 1.0f, focused_here ? ink ( tone::ACCENT ) : ink ( tone::LINE_STRONG ) );
 
 		float right = area.right ( ) - 10.0f;
@@ -247,7 +264,7 @@ namespace ui {
 
 		select_state ( doc );
 		drawing_serial = current.serial;
-		approach ( current.fade, 1.0f, 16.0f );
+		approach ( current.fade, 1.0f, 18.0f );
 
 		float fade = math::saturate ( current.fade );
 

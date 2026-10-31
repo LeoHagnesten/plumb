@@ -8,6 +8,8 @@ namespace decompiler {
 		bool open = false;
 		bool terminal = false;
 		bool spaced = false;
+		namer* names = nullptr;
+		uint64_t commented = 0;
 		int32_t indent = 0;
 		line current;
 
@@ -92,6 +94,25 @@ namespace decompiler {
 			if ( !open )
 				return;
 
+			if ( names && current.address && current.address != commented ) {
+
+				const wchar_t* note = names->comment ( current.address );
+
+				commented = current.address;
+
+				if ( note ) {
+
+					bool keep = spaced;
+
+					spaced = false;
+					put ( L"  // ", syntax::COMMENT );
+					put ( note, syntax::COMMENT );
+					spaced = keep;
+
+				}
+
+			}
+
 			current.length = r->text.count ( ) - current.text;
 			current.span_count = r->spans.count ( ) - current.first_span;
 			r->lines.push ( current );
@@ -126,6 +147,7 @@ namespace decompiler {
 		explicit emitter ( builder& owner ) : b ( owner ) {
 
 			out.spaced = owner.names && owner.names->spaced ( );
+			out.names = owner.names;
 
 		}
 
@@ -234,6 +256,9 @@ namespace decompiler {
 		bool has_struct ( int32_t var ) {
 
 			const variable& owner = b.vars [ static_cast < size_t > ( var ) ];
+
+			if ( var < b.var_types.count ( ) && !b.var_types [ static_cast < size_t > ( var ) ].empty ( ) )
+				return false;
 
 			if ( owner.kind != var_kind::PARAMETER || owner.bits & FLOATING )
 				return false;
@@ -596,6 +621,35 @@ namespace decompiler {
 
 				var = static_cast < int32_t > ( b.exprs [ static_cast < size_t > ( where.a ) ].value );
 				offset = b.exprs [ static_cast < size_t > ( where.b ) ].value;
+
+			}
+
+			if ( var >= 0 && var < b.var_structs.count ( ) && !b.var_structs [ static_cast < size_t > ( var ) ].empty ( ) ) {
+
+				wchar_t field [ 64 ];
+				uint64_t tag = 0;
+				int32_t field_size = 0;
+
+				if ( b.names->struct_field ( b.var_structs [ static_cast < size_t > ( var ) ].get ( ), offset, field, 64, tag, field_size ) ) {
+
+					bool exact = field_size == item.size || field_size == 0;
+
+					if ( !exact ) {
+
+						out.put ( L"*(" );
+						type_name ( item.size, item.bits, false );
+						out.put ( L"*)&" );
+
+					}
+
+					var_name ( var, name );
+					out.put ( name, b.vars [ static_cast < size_t > ( var ) ].kind == var_kind::PARAMETER ? syntax::PARAMETER : syntax::LOCAL );
+					out.put ( L"->", syntax::OPERATOR );
+					out.put ( field, syntax::GLOBAL, tag );
+
+					return;
+
+				}
 
 			}
 
@@ -2141,6 +2195,7 @@ namespace decompiler {
 		body_emitter.run ( );
 		body_emitter.dry = true;
 		b.var_types.resize ( b.vars.size ( ) );
+		b.var_structs.resize ( b.vars.size ( ) );
 
 		bool typed = false;
 
@@ -2170,6 +2225,10 @@ namespace decompiler {
 			item.size = shape.size;
 			item.bits = static_cast < uint8_t > ( shape.bits );
 			b.var_types [ static_cast < size_t > ( v ) ].set ( clean );
+
+			if ( shape.pointer && shape.pointee [ 0 ] )
+				b.var_structs [ static_cast < size_t > ( v ) ].set ( shape.pointee );
+
 			typed = true;
 
 		}
@@ -2412,6 +2471,21 @@ namespace decompiler {
 
 		out.gotos = body_emitter.gotos / 2;
 		out.locals = declared;
+		out.hints.clear ( );
+
+		for ( const field_use& item : b.fields ) {
+
+			if ( item.var < 0 || item.var >= b.vars.count ( ) || !body_emitter.referenced [ static_cast < size_t > ( item.var ) ] )
+				continue;
+
+			field_hint& hint = out.hints.emplace ( );
+
+			head.var_name ( item.var, hint.var );
+			hint.offset = item.offset;
+			hint.size = item.size;
+			hint.bits = item.bits;
+
+		}
 
 		return true;
 
@@ -2425,6 +2499,7 @@ namespace decompiler {
 		out.text.clear ( );
 		out.spans.clear ( );
 		out.lines.clear ( );
+		out.hints.clear ( );
 		out.function = function;
 		b->db = &db;
 		b->file = db.file;

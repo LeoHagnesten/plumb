@@ -192,6 +192,31 @@ namespace ui {
 
 				break;
 
+			case panel::STRUCTS:
+
+				list.push ( -2 );
+
+				for ( int32_t i = 0; i < structs.count ( ); i++ ) {
+
+					const user_struct& item = structs [ static_cast < size_t > ( i ) ];
+
+					if ( !contains_text ( item.name.get ( ), needle ) )
+						continue;
+
+					list.push ( i * 4096 );
+
+					if ( i != expanded_struct )
+						continue;
+
+					for ( int32_t f = 0; f < item.fields.count ( ) && f < 4000; f++ )
+						list.push ( i * 4096 + 1 + f );
+
+					list.push ( i * 4096 + 4095 );
+
+				}
+
+				break;
+
 			case panel::REFERENCES:
 
 				for ( int32_t i = 0; i < reference_list.count ( ); i++ ) {
@@ -422,10 +447,17 @@ namespace ui {
 			return;
 
 		pane& item = panes [ target_pane ];
+		int32_t before = pane_document ( target_pane );
 
 		focused_pane = target_pane;
 		item.active = base::clamp ( tab, 0, base::max ( item.count - 1, 0 ) );
-		select_state ( pane_document ( target_pane ) );
+
+		int32_t after = pane_document ( target_pane );
+
+		if ( after >= 0 && after != before )
+			documents [ after ].fade = 0.2f;
+
+		select_state ( after );
 		pending = base::max ( pending, 2 );
 
 	}
@@ -671,6 +703,41 @@ namespace ui {
 
 		}
 
+		bool struct_field ( const wchar_t* type, int64_t offset, wchar_t* out, int32_t room, uint64_t& tag, int32_t& size ) override {
+
+			int32_t index = owner->struct_named ( type );
+
+			if ( index < 0 )
+				return false;
+
+			for ( const user_field& item : owner->structs [ static_cast < size_t > ( index ) ].fields ) {
+
+				if ( item.offset != offset )
+					continue;
+
+				int32_t k = 0;
+
+				for ( const wchar_t* at = item.name.get ( ); *at && *at != L'[' && k < room - 1; at++ )
+					out [ k++ ] = *at;
+
+				out [ k ] = 0;
+				size = item.size;
+				tag = ( 1ull << 63 ) | ( static_cast < uint64_t > ( index ) << 32 ) | static_cast < uint32_t > ( offset );
+
+				return true;
+
+			}
+
+			return false;
+
+		}
+
+		const wchar_t* comment ( uint64_t address ) override {
+
+			return owner->comment_at ( address );
+
+		}
+
 	};
 
 	const decompiler::result* app::pseudocode_for ( uint64_t function ) {
@@ -698,6 +765,50 @@ namespace ui {
 
 		base::writer problem;
 		double started = base::seconds ( );
+		int32_t length = 0;
+		wchar_t binary [ 600 ];
+		base::text from_project;
+
+		while ( path [ length ] )
+			length++;
+
+		if ( length > 6 && base::same_text ( path + length - 6, L".plumb" ) ) {
+
+			base::list < char > data;
+			int32_t made = 0;
+
+			binary [ 0 ] = 0;
+
+			if ( files::read ( path, data ) && data.count ( ) > 5 && data [ 0 ] == 'f' && data [ 1 ] == 'i' && data [ 2 ] == 'l' && data [ 3 ] == 'e' && data [ 4 ] == ' ' ) {
+
+				int32_t end = 5;
+
+				while ( end < data.count ( ) && data [ static_cast < size_t > ( end ) ] != '\n' && data [ static_cast < size_t > ( end ) ] != '\r' && data [ static_cast < size_t > ( end ) ] )
+					end++;
+
+				made = MultiByteToWideChar ( CP_UTF8, 0, data.data ( ) + 5, end - 5, binary, 599 );
+				binary [ made > 0 ? made : 0 ] = 0;
+
+			}
+
+			if ( !binary [ 0 ] || GetFileAttributesW ( binary ) == INVALID_FILE_ATTRIBUTES ) {
+
+				int32_t k = 0;
+
+				for ( ; k < length - 6 && k < 599; k++ )
+					binary [ k ] = path [ k ];
+
+				binary [ k ] = 0;
+
+			}
+
+			from_project.set ( path );
+			path = binary;
+
+		}
+
+		if ( !confirm_discard ( ) )
+			return false;
 
 		close_file ( );
 
@@ -734,6 +845,7 @@ namespace ui {
 		focused_pane = 0;
 		open_document ( view::LISTING, 0, file.entry ? file.entry : file.low ( ) );
 		remember_recent ( path );
+		project_file.set ( from_project.empty ( ) ? L"" : from_project.get ( ) );
 		load_project ( );
 
 		base::writer line;
@@ -774,7 +886,11 @@ namespace ui {
 			return;
 
 		wait_analysis ( );
-		save_project ( );
+
+		if ( autosave )
+			save_project ( );
+
+		dirty = false;
 		log ( log_kind::INFO, base::writer ( ).add ( L"Closed " ).add ( file.name.get ( ) ).text ( ) );
 
 		if ( db )

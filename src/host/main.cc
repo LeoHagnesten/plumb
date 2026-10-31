@@ -257,10 +257,10 @@ static void render_main ( ) {
 
 			if ( SUCCEEDED ( CoCreateInstance ( CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS ( &dialog ) ) ) ) {
 
-				COMDLG_FILTERSPEC kinds [ 3 ] = { { L"Executables and libraries", L"*.exe;*.dll;*.sys;*.ocx;*.cpl;*.scr;*.efi" }, { L"Object and data files", L"*.obj;*.bin;*.dat;*.rom" }, { L"All files", L"*.*" } };
+				COMDLG_FILTERSPEC kinds [ 4 ] = { { L"Executables and libraries", L"*.exe;*.dll;*.sys;*.ocx;*.cpl;*.scr;*.efi" }, { L"Plumb projects", L"*.plumb" }, { L"Object and data files", L"*.obj;*.bin;*.dat;*.rom" }, { L"All files", L"*.*" } };
 				IShellItem* picked = nullptr;
 
-				dialog->SetFileTypes ( 3, kinds );
+				dialog->SetFileTypes ( 4, kinds );
 				dialog->SetTitle ( L"Open a binary" );
 
 				if ( SUCCEEDED ( dialog->Show ( main_window ) ) && SUCCEEDED ( dialog->GetResult ( &picked ) ) ) {
@@ -617,7 +617,12 @@ static LRESULT __stdcall procedure ( HWND window, UINT message, WPARAM wide, LPA
 			break;
 
 		case WM_CLOSE:
+
+			if ( program && !program->can_close ( ) )
+				return 0;
+
 			DestroyWindow ( window );
+
 			return 0;
 
 		case WM_DESTROY: {

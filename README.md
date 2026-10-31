@@ -31,6 +31,8 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 - Structured output: `if`/`else` chains, `while`, `do`/`while`, `switch` and `goto` only as a last resort. Dead stores and duplicate expressions are removed, and stack arguments are matched to calls.
 - Inferred struct layouts for pointer parameters, and float literals where the types show them.
 - Rename a variable (N) or set its type (Y), then the function decompiles again with that type. Y on the function name edits the whole prototype, including return type, name and parameters. Callers pick up the new argument count, and bad types produce a warning instead of failing silently.
+- User-defined structs. Press S on a pointer variable to build a struct from how the function uses it, then rename fields (N) and retype them (Y) right in the C. Structs can also be built and edited in the Structures panel (Alt+7), and any variable typed `Name*` reads as `v->field`.
+- Comments (;) show up in both the disassembly and the C.
 - Line numbers, VS-style coloring, and an optional `call ( arg )` spacing style.
 
 ### Debugger
@@ -44,7 +46,8 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 
 - Up to 16 tabs across two split panes. Each tab is a listing, graph, C, hex or headers view.
 - Browser, inspector and output windows dock to the left, right or bottom: drag a window's header to move it. Window > Reset window layout puts everything back.
-- Projects save automatically: names, comments, bookmarks, number formats, variable names, types, prototypes and breakpoints.
+- Ctrl+S saves the project to a `.plumb` file beside the binary. It holds names, comments, bookmarks, number formats, variable names, types, prototypes, structs and breakpoints, and opening that file opens the binary with everything restored. Autosave is a setting in the File menu, and closing with unsaved changes asks first.
+- Undo and redo (Ctrl+Z, Ctrl+Y) for every edit.
 - Command palette (Ctrl+Shift+P), go to address or name (G), back and forward history, and a command line in the output pane.
 - Dark and light themes.
 
@@ -52,6 +55,8 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 | --- | --- |
 | ![C view](docs/media/pseudocode.png) | ![Graph view](docs/media/graph.png) |
 | ![Classes recovered from RTTI](docs/media/classes.png) | ![Paused at a breakpoint](docs/media/debugger.png) |
+
+![The light theme with C and disassembly side by side](docs/media/light.png)
 
 ## Keys
 
@@ -65,6 +70,8 @@ A disassembler, decompiler and debugger for Windows executables. Plumb is writte
 | F9 | Start or continue | F7 / F8 | Step into / over |
 | F2 | Breakpoint | Ctrl+F2 | Stop debugging |
 | Ctrl+Alt+S | Make signature | Ctrl+Alt+F | Find signature |
+| S | Struct from variable | Alt+7 | Structures |
+| Ctrl+S | Save project | Ctrl+Z / Ctrl+Y | Undo / redo |
 | Ctrl+1 / 2 / 3 | New listing, hex or headers tab | Ctrl+\\ | Split |
 
 ## Building

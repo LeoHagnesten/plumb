@@ -375,7 +375,7 @@ namespace ui {
 					run ( command::BACK );
 				else if ( code == VK_RIGHT )
 					run ( command::FORWARD );
-				else if ( code >= '1' && code <= '8' )
+				else if ( code >= '1' && code <= '9' )
 					run ( static_cast < command > ( static_cast < int32_t > ( command::SHOW_FUNCTIONS ) + static_cast < int32_t > ( code - '1' ) ) );
 
 				continue;
@@ -388,6 +388,18 @@ namespace ui {
 
 					case 'O':
 						run ( command::OPEN );
+						break;
+
+					case 'S':
+						run ( command::SAVE_PROJECT );
+						break;
+
+					case 'Z':
+						run ( command::UNDO );
+						break;
+
+					case 'Y':
+						run ( command::REDO );
 						break;
 
 					case 'W':
@@ -520,6 +532,13 @@ namespace ui {
 
 				case 'Y':
 					run ( command::SET_TYPE );
+					continue;
+
+				case 'S':
+
+					if ( showing == view::PSEUDOCODE )
+						run ( command::STRUCT_FROM_VAR );
+
 					continue;
 
 				case 'B':
@@ -708,8 +727,12 @@ namespace ui {
 
 					const decompiler::line& item = code_view->lines [ static_cast < size_t > ( now->code_line ) ];
 
-					if ( item.address )
+					if ( item.address ) {
+
 						now->cursor_address = item.address;
+						sync_panes ( item.address );
+
+					}
 
 					float visible = panes [ focused_pane ].body.h / 20.0f - 1.0f;
 					float place = static_cast < float > ( now->code_line );
